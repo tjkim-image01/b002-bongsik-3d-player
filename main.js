@@ -6,8 +6,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const $ = id => document.getElementById(id);
 const M = await (await fetch('data/motion.json')).json();
 const HB = await (await fetch('data/hands-beats.json', { cache: 'no-store' })).json();
-const COLLIDE = await fetch('media/bongsik-dance-collide.json').then(r => r.ok ? r.json() : null).catch(() => null);
-const MODEL = new URLSearchParams(location.search).get('model') === 'v1' ? 'media/bongsik.glb' : 'media/bongsik-dance.glb';
+// 모델: 기본 dance2(다리 늘림 + 손 모양별 손 바꿔 끼우기) · ?model=dance1(팔만 늘림, 만든 손) · ?model=v1(처음)
+const MODEL_KEY = new URLSearchParams(location.search).get('model') ?? 'dance2';
+const MODEL = { v1: 'media/bongsik.glb', dance1: 'media/bongsik-dance.glb', dance2: 'media/bongsik-dance2.glb' }[MODEL_KEY] ?? 'media/bongsik-dance2.glb';
+const COLLIDE = await fetch(MODEL_KEY === 'dance1' ? 'media/bongsik-dance-collide.json' : 'media/bongsik-dance2-collide.json').then(r => r.ok ? r.json() : null).catch(() => null);
 const FPS = M.fps, N = M.frames, DUR = N / FPS;
 const [CX, CY, CW, CH] = M.crop;
 // 공개판(index에 노래·원작 영상이 없음)은 같은 모양의 시계로 돈다
@@ -112,7 +114,15 @@ const gltf = await new GLTFLoader().loadAsync(MODEL);
 const model = gltf.scene;
 scene.add(model);
 let skinned;
-model.traverse(o => { if (o.isSkinnedMesh) { skinned = o; o.frustumCulled = false; } });
+// 손 모양별 손 메시(Hand_Left_open …): 박자마다 하나만 보이게 바꿔 끼운다
+const swapHands = { Left: {}, Right: {} };
+model.traverse(o => {
+  const m = /^Hand_(Left|Right)_(\w+)$/.exec(o.name);
+  if (m) swapHands[m[1]][m[2]] = o;
+  if (o.isSkinnedMesh) { o.frustumCulled = false; if (!m && (!skinned || o.geometry.attributes.position.count > skinned.geometry.attributes.position.count)) skinned = o; }
+});
+const HAS_SWAP = Object.keys(swapHands.Left).length > 0;
+for (const S of ['Left', 'Right']) for (const o of Object.values(swapHands[S])) o.traverse(x => { x.frustumCulled = false; });
 const bone = {};
 for (const b of skinned.skeleton.bones) bone[b.name.replace(/^mixamorig:?/, '')] = b;
 const helper = new THREE.SkeletonHelper(model); helper.visible = false; scene.add(helper);
@@ -190,7 +200,15 @@ function shapeAt(side, t) {        // 박이 바뀌기 0.1초 전부터 다음 �
   for (const f of FINGERS) out[f] = cur[f].map((v, j) => v + (nx[f][j] - v) * k);
   return out;
 }
+function applySwap(mixSide, t) {
+  const B = HB.beats, i = beatIndex(t), side = MP[mixSide].hand;
+  // 다음 박 바로 앞(0.06초)에 바꿔 끼워 박자에 손 모양이 맞게
+  const k = B[i + 1] && t > B[i + 1].t - .06 ? i + 1 : i;
+  const want = swapHands[mixSide][B[k][side]] ? B[k][side] : 'open';
+  for (const [n, o] of Object.entries(swapHands[mixSide])) o.visible = n === want;
+}
 function applyFingers(mixSide, t) {
+  if (HAS_SWAP) return applySwap(mixSide, t);
   const sh = shapeAt(MP[mixSide].hand, t);
   for (const f of FINGERS) for (let k = 1; k <= 3; k++) {
     const b = bone[`${mixSide}Hand${f}${k}`];
@@ -330,11 +348,12 @@ function pose(t) {
 }
 
 // ── 카메라 ────────────────────────────────────────────────
-const CAMS = { front: [0, .12, 3.6], three4: [.65, .2, 3.6], side: [Math.PI / 2, .1, 3.6] };
-const cam = { az: 0, el: .12, r: 3.6 };
+const R0 = MODEL_KEY === 'dance2' ? 4.1 : 3.6;
+const CAMS = { front: [0, .12, R0], three4: [.65, .2, R0], side: [Math.PI / 2, .1, R0] };
+const cam = { az: 0, el: .12, r: R0 };
 let follow = 0;
 function placeCamera() {
-  const tx = follow, ty = .78;
+  const tx = follow, ty = MODEL_KEY === 'dance2' ? .92 : .78;   // 다리 늘린 몸은 키가 1.84m
   camera.position.set(tx + cam.r * Math.sin(cam.az) * Math.cos(cam.el), ty + cam.r * Math.sin(cam.el), cam.r * Math.cos(cam.az) * Math.cos(cam.el));
   camera.lookAt(tx, ty, 0);
 }
