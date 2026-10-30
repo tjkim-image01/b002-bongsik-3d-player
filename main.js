@@ -7,9 +7,12 @@ const $ = id => document.getElementById(id);
 const M = await (await fetch('data/motion.json')).json();
 const HB = await (await fetch('data/hands-beats.json', { cache: 'no-store' })).json();
 // 모델: 기본 dance2(다리 늘림 + 손 모양별 손 바꿔 끼우기) · ?model=dance1(팔만 늘림, 만든 손) · ?model=v1(처음)
-const MODEL_KEY = new URLSearchParams(location.search).get('model') ?? 'dance2';
-const MODEL = { v1: 'media/bongsik.glb', dance1: 'media/bongsik-dance.glb', dance2: 'media/bongsik-dance2.glb' }[MODEL_KEY] ?? 'media/bongsik-dance2.glb';
-const COLLIDE = await fetch(MODEL_KEY === 'dance1' ? 'media/bongsik-dance-collide.json' : 'media/bongsik-dance2-collide.json').then(r => r.ok ? r.json() : null).catch(() => null);
+// 모델: 기본 remake(2026-10-31 지금 비율로 원화부터 새로 만든 봉식이 + 손 모양별 손 + 노래 입 모양)
+// ?model=dance2(이전 모델을 늘리고 덧댄 것) · dance1 · v1(처음)
+const MODEL_KEY = new URLSearchParams(location.search).get('model') ?? 'remake';
+const MODEL = { v1: 'media/bongsik.glb', dance1: 'media/bongsik-dance.glb', dance2: 'media/bongsik-dance2.glb', remake: 'media/bongsik-remake.glb' }[MODEL_KEY] ?? 'media/bongsik-remake.glb';
+const COLLIDE = await fetch({ dance1: 'media/bongsik-dance-collide.json', dance2: 'media/bongsik-dance2-collide.json' }[MODEL_KEY] ?? 'media/bongsik-remake-collide.json').then(r => r.ok ? r.json() : null).catch(() => null);
+const VIS = await fetch('data/visemes.json').then(r => r.ok ? r.json() : null).catch(() => null);
 const FPS = M.fps, N = M.frames, DUR = N / FPS;
 const [CX, CY, CW, CH] = M.crop;
 // 공개판(index에 노래·원작 영상이 없음)은 같은 모양의 시계로 돈다
@@ -122,10 +125,29 @@ model.traverse(o => {
   if (o.isSkinnedMesh) { o.frustumCulled = false; if (!m && (!skinned || o.geometry.attributes.position.count > skinned.geometry.attributes.position.count)) skinned = o; }
 });
 const HAS_SWAP = Object.keys(swapHands.Left).length > 0;
+// ── 입 모양: 발음별 얼굴 텍스처(ChatGPT 입 그림을 원화 얼굴에 맞춰 붙인 것)를 노래 시간표(data/visemes.json, 30fps)대로 바꾼다
+const MOUTHS = {};
+if (MODEL_KEY === 'remake' && VIS) {
+  const tl = new THREE.TextureLoader();
+  await Promise.all(['rest', 'm', 'a', 'e', 'i', 'o', 'u'].map(async v => {
+    const t = await tl.loadAsync(`media/mouth/texture-${v}.jpg`);
+    t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    MOUTHS[v] = t;
+  }));
+  for (const t of Object.values(MOUTHS)) renderer.initTexture(t);
+}
+const bodyMat = skinned.material;
+let shownMouth = null;
+function applyMouth(t) {
+  if (!VIS || !MOUTHS.rest) return;
+  const v = VIS.frames[Math.min(VIS.frames.length - 1, Math.max(0, Math.round(t * VIS.fps)))] ?? 'rest';
+  if (v === shownMouth) return;
+  shownMouth = v; bodyMat.map = MOUTHS[v] ?? MOUTHS.rest; bodyMat.needsUpdate = true;
+}
 // 머리 크기·목: 2/3(0.67)은 너무 작다 → ×1.5 = 1.0(2026-10-31). 목이 없어 보여 머리를 목 방향으로 NECK_UP만큼 올려
 // 턱~깃 사이 목 살을 드러낸다(목·머리 경계 정점이 늘어나며 목이 생긴다). ?head=, ?neck= 로 바꿔 볼 수 있다.
 const QS = new URLSearchParams(location.search);
-let HEAD_SCALE = +(QS.get('head') ?? (MODEL_KEY === 'dance2' ? .85 : 1));   // 0.67·0.75·0.8·0.85·0.9·1.0 비교 후 0.85(2026-10-31, 사용자: 보기 좋게 맞춰 달라)
+let HEAD_SCALE = +(QS.get('head') ?? (MODEL_KEY === 'dance2' ? .85 : 1));   // remake는 원화에서부터 비율을 맞춰 1   // 0.67·0.75·0.8·0.85·0.9·1.0 비교 후 0.85(2026-10-31, 사용자: 보기 좋게 맞춰 달라)
 let NECK_UP = +(QS.get('neck') ?? 0);   // 목은 모델에 넣었다(b003 neck_fix.py: 턱 깎기 + 목 원기둥). 머리 뼈를 올리면 턱 살이 늘어나 이중턱이 됐다
 for (const S of ['Left', 'Right']) for (const o of Object.values(swapHands[S])) o.traverse(x => { x.frustumCulled = false; });
 const bone = {};
@@ -359,6 +381,7 @@ function pose(t) {
     }
   }
   applyFingers('Left', t); applyFingers('Right', t);
+  applyMouth(t);
   model.updateMatrixWorld(true);
   // 이동: 좌우는 원본 엉덩이 화면 이동, 높이는 가장 낮은 발을 바닥에 붙인다
   const [i, a] = frameAt(t);
@@ -371,12 +394,12 @@ function pose(t) {
 }
 
 // ── 카메라 ────────────────────────────────────────────────
-const R0 = MODEL_KEY === 'dance2' ? 4.1 : 3.6;
+const R0 = MODEL_KEY === 'dance2' || MODEL_KEY === 'remake' ? 4.1 : 3.6;
 const CAMS = { front: [0, .12, R0], three4: [.65, .2, R0], side: [Math.PI / 2, .1, R0] };
 const cam = { az: 0, el: .12, r: R0 };
 let follow = 0;
 function placeCamera() {
-  const tx = follow, ty = MODEL_KEY === 'dance2' ? .92 : .78;   // 다리 늘린 몸은 키가 1.84m
+  const tx = follow, ty = MODEL_KEY === 'dance2' || MODEL_KEY === 'remake' ? .92 : .78;   // 다리 늘린 몸은 키가 1.84m
   camera.position.set(tx + cam.r * Math.sin(cam.az) * Math.cos(cam.el), ty + cam.r * Math.sin(cam.el), cam.r * Math.cos(cam.az) * Math.cos(cam.el));
   camera.lookAt(tx, ty, 0);
 }
