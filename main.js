@@ -122,6 +122,8 @@ model.traverse(o => {
   if (o.isSkinnedMesh) { o.frustumCulled = false; if (!m && (!skinned || o.geometry.attributes.position.count > skinned.geometry.attributes.position.count)) skinned = o; }
 });
 const HAS_SWAP = Object.keys(swapHands.Left).length > 0;
+// 머리 크기: 춤 모델은 머리를 2/3로 줄인다(2026-10-31 사용자: "얼굴도 2/3 정도로"). ?head=1 로 원래 크기
+const HEAD_SCALE = +(new URLSearchParams(location.search).get('head') ?? (MODEL_KEY === 'dance2' ? 0.67 : 1));
 for (const S of ['Left', 'Right']) for (const o of Object.values(swapHands[S])) o.traverse(x => { x.frustumCulled = false; });
 const bone = {};
 for (const b of skinned.skeleton.bones) bone[b.name.replace(/^mixamorig:?/, '')] = b;
@@ -302,6 +304,7 @@ function pose(t) {
   }
   setWorldQuat(bone.Neck, qC.clone().slerp(qHd, .5).multiply(W('Neck')));
   setWorldQuat(bone.Head, qHd.clone().multiply(W('Head')));
+  bone.Head.scale.setScalar(HEAD_SCALE); bone.Head.updateMatrixWorld(true);
   for (const S of ['Left', 'Right']) {
     const m = MP[S];
     const toKnee = p[m.kn].clone().sub(p[m.sh]).normalize();
