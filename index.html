@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D 봉식이 찐이야</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+</head>
+<body data-mode="public">
+<header>
+  <h1>b002 v2 · 3D 봉식이 「찐이야」 1분</h1>
+  <p>원작 안무를 졸라맨(관절)으로 뽑아 3D 봉식이가 그대로 따라 춘다 · 1분 · 소리 없음</p>
+</header>
+<main>
+  <section class="panel">
+    <h2>졸라맨 (원작 관절)</h2>
+    <div class="stage"><canvas id="stick"></canvas></div>
+  </section>
+  <section class="panel wide">
+    <h2>3D 봉식이</h2>
+    <div class="stage" id="threeStage"><canvas id="three"></canvas>
+      <div id="loading">3D 봉식이 불러오는 중…</div>
+    </div>
+  </section>
+</main>
+<footer>
+  <button id="play" aria-label="재생">▶ 재생</button>
+  <span id="clock">0:00.0 / 1:00.0</span>
+  <input id="seek" type="range" min="0" max="60" step="0.01" value="0" aria-label="재생 위치">
+  <label>속도 <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select></label>
+  
+  <label><input type="checkbox" id="showBones"> 3D 뼈대</label>
+  <span class="cams">
+    <button data-cam="front" aria-pressed="true">정면</button>
+    <button data-cam="three4">반측면</button>
+    <button data-cam="side">옆</button>
+  </span>
+</footer>
+<script type="module" src="main.js"></script>
+</body>
+</html>

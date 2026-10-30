@@ -1,0 +1,419 @@
+// b002 v2 — 원작 댄서 관절(MediaPipe, 졸라맨)을 그대로 따라 움직이는 3D 봉식이(Mixamo 리그) 플레이어.
+// 대역 인형(봉식이 체형으로 바꾼 졸라맨)이 아니라 원본 댄서의 관절 방향을 프레임마다 뼈에 옮긴다.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const $ = id => document.getElementById(id);
+const M = await (await fetch('data/motion.json')).json();
+const HB = await (await fetch('data/hands-beats.json', { cache: 'no-store' })).json();
+const COLLIDE = await fetch('media/bongsik-dance-collide.json').then(r => r.ok ? r.json() : null).catch(() => null);
+const MODEL = new URLSearchParams(location.search).get('model') === 'v1' ? 'media/bongsik.glb' : 'media/bongsik-dance.glb';
+const FPS = M.fps, N = M.frames, DUR = N / FPS;
+const [CX, CY, CW, CH] = M.crop;
+// 공개판(index에 노래·원작 영상이 없음)은 같은 모양의 시계로 돈다
+function makeClock() {
+  let base = 0, at = 0, rate = 1, paused = true;
+  const now = () => performance.now() / 1000;
+  return {
+    get currentTime() { return paused ? base : Math.min(base + (now() - at) * rate, M.frames / M.fps); },
+    set currentTime(v) { base = v; at = now(); },
+    get paused() { return paused; },
+    get playbackRate() { return rate; },
+    set playbackRate(v) { base = this.currentTime; at = now(); rate = v; },
+    play() { if (paused) { at = now(); paused = false; } return Promise.resolve(); },
+    pause() { base = this.currentTime; paused = true; },
+    onended: null,
+  };
+}
+const audio = $('audio') ?? makeClock();
+const video = $('video') ?? { currentTime: 0, playbackRate: 1, play: () => Promise.resolve(), pause() {} };
+
+// ── 관절 표본 ─────────────────────────────────────────────
+// MediaPipe 좌표는 화면 그대로(x 오른쪽)이고, 왼쪽 표식(11,13,15…)은 카메라를 본 댄서의 왼쪽 = 화면 오른쪽이다.
+// 봉식이도 +z(카메라)를 보고 Left가 화면 오른쪽이므로 같은 이름끼리 잇는다 → 화면에 보이는 원본 모양 그대로.
+const MP = {
+  Left: { sh: 11, el: 13, wr: 15, pk: 17, ix: 19, hip: 23, kn: 25, an: 27, ft: 31, ear: 7, hand: 'L' },
+  Right: { sh: 12, el: 14, wr: 16, pk: 18, ix: 20, hip: 24, kn: 26, an: 28, ft: 32, ear: 8, hand: 'R' },
+};
+const frameAt = t => { const f = THREE.MathUtils.clamp(t * FPS, 0, N - 1.001); const i = Math.floor(f); return [i, f - i]; };
+function P3(t) {                 // MediaPipe 3D(엉덩이 중심, y 아래, z 카메라 쪽 음수) → three(y 위, 카메라 쪽 +z)
+  const [i, a] = frameAt(t), A = M.world[i], B = M.world[i + 1];
+  const out = [];
+  for (let k = 0; k < 33; k++) {
+    const x = A[3 * k] + (B[3 * k] - A[3 * k]) * a, y = A[3 * k + 1] + (B[3 * k + 1] - A[3 * k + 1]) * a, z = A[3 * k + 2] + (B[3 * k + 2] - A[3 * k + 2]) * a;
+    out.push(new THREE.Vector3(x, -y, -z));
+  }
+  return out;
+}
+function P2(t) {
+  const [i, a] = frameAt(t), A = M.lm[i], B = M.lm[i + 1];
+  const out = [];
+  for (let k = 0; k < 33; k++) out.push([A[2 * k] + (B[2 * k] - A[2 * k]) * a, A[2 * k + 1] + (B[2 * k + 1] - A[2 * k + 1]) * a]);
+  return out;
+}
+const mid = (a, b) => a.clone().add(b).multiplyScalar(.5);
+
+// ── 졸라맨 그리기 ───────────────────────────────────────────
+const LIMBS = [[11, 13, 'a'], [13, 15, 'a'], [15, 19, 'a'], [12, 14, 'b'], [14, 16, 'b'], [16, 20, 'b'], [11, 12, 'c'], [11, 23, 'c'], [12, 24, 'c'], [23, 24, 'c'],
+  [23, 25, 'a'], [25, 27, 'a'], [27, 31, 'a'], [24, 26, 'b'], [26, 28, 'b'], [28, 32, 'b']];
+const COL = { a: '#28c2c9', b: '#ff5a4e', c: '#f2b632' };
+function fitCanvas(cv) {
+  const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1;
+  if (cv.width !== Math.round(r.width * d) || cv.height !== Math.round(r.height * d)) { cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); }
+  const s = Math.min(cv.width / CW, cv.height / CH);
+  return { s, ox: (cv.width - CW * s) / 2, oy: (cv.height - CH * s) / 2 };
+}
+function drawStick(cv, t, dark) {
+  const g = cv.getContext('2d'), m = fitCanvas(cv), p = P2(t);
+  const X = q => m.ox + (q[0] - CX) * m.s, Y = q => m.oy + (q[1] - CY) * m.s;
+  g.clearRect(0, 0, cv.width, cv.height);
+  if (dark) {
+    g.fillStyle = '#1b1720'; g.fillRect(m.ox, m.oy, CW * m.s, CH * m.s);
+    const fy = Math.max(p[31][1], p[32][1], p[29][1], p[30][1]);
+    g.strokeStyle = '#3a3244'; g.lineWidth = 2 * devicePixelRatio; g.beginPath(); g.moveTo(m.ox, Y([0, fy]) + 6); g.lineTo(m.ox + CW * m.s, Y([0, fy]) + 6); g.stroke();
+  }
+  const w = (dark ? 7 : 4) * devicePixelRatio;
+  g.lineCap = 'round';
+  for (const [a, b, c] of LIMBS) {
+    g.strokeStyle = COL[c]; g.lineWidth = w;
+    g.beginPath(); g.moveTo(X(p[a]), Y(p[a])); g.lineTo(X(p[b]), Y(p[b])); g.stroke();
+  }
+  const sh = [(p[11][0] + p[12][0]) / 2, (p[11][1] + p[12][1]) / 2];
+  const hd = [(p[7][0] + p[8][0]) / 2, (p[7][1] + p[8][1]) / 2];
+  g.strokeStyle = COL.c; g.lineWidth = w; g.beginPath(); g.moveTo(X(sh), Y(sh)); g.lineTo(X(hd), Y(hd)); g.stroke();
+  const r = Math.hypot(p[7][0] - p[8][0], p[7][1] - p[8][1]) * .75 * m.s + 4;
+  g.fillStyle = dark ? '#f1ebe2' : 'rgba(241,235,226,.35)'; g.beginPath(); g.arc(X(hd), Y(hd), r, 0, 7); g.fill();
+  g.fillStyle = '#17141c'; g.beginPath(); g.arc(X(p[0]), Y(p[0]), 3 * devicePixelRatio, 0, 7); g.fill();
+}
+
+// ── 3D 무대 ────────────────────────────────────────────────
+const canvas = $('three');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#2a2232');
+const camera = new THREE.PerspectiveCamera(30, 1, .05, 50);
+function gradTex(inner, outer) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, inner); gr.addColorStop(1, outer); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const floor = new THREE.Mesh(new THREE.CircleGeometry(3.2, 96), new THREE.MeshBasicMaterial({ map: gradTex('#5a4a66', '#2a2232') }));
+floor.rotation.x = -Math.PI / 2; scene.add(floor);
+for (const r of [0.9, 1.6, 2.3]) {
+  const ring = new THREE.Mesh(new THREE.RingGeometry(r - .006, r + .006, 128), new THREE.MeshBasicMaterial({ color: '#6e5c7c', transparent: true, opacity: .5 }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = .001; scene.add(ring);
+}
+const shadow = new THREE.Mesh(new THREE.CircleGeometry(.42, 48), new THREE.MeshBasicMaterial({ map: gradTex('rgba(0,0,0,0.55)', 'rgba(0,0,0,0)'), transparent: true, depthWrite: false }));
+shadow.rotation.x = -Math.PI / 2; shadow.position.y = .003; shadow.scale.set(1, .6, 1); scene.add(shadow);
+
+const gltf = await new GLTFLoader().loadAsync(MODEL);
+const model = gltf.scene;
+scene.add(model);
+let skinned;
+model.traverse(o => { if (o.isSkinnedMesh) { skinned = o; o.frustumCulled = false; } });
+const bone = {};
+for (const b of skinned.skeleton.bones) bone[b.name.replace(/^mixamorig:?/, '')] = b;
+const helper = new THREE.SkeletonHelper(model); helper.visible = false; scene.add(helper);
+$('loading').remove();
+
+model.updateMatrixWorld(true);
+const wpos = (b, o = new THREE.Vector3()) => b.getWorldPosition(o);
+const wquat = (b, o = new THREE.Quaternion()) => b.getWorldQuaternion(o);
+const rest = {};
+for (const [n, b] of Object.entries(bone)) rest[n] = { q: b.quaternion.clone(), p: b.position.clone(), wq: wquat(b) };
+function basis(across, up) {
+  const x = across.clone().normalize();
+  const y = up.clone().addScaledVector(x, -up.dot(x)).normalize();
+  return new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y));
+}
+const delta = (Bt, Br) => new THREE.Quaternion().setFromRotationMatrix(Bt.clone().multiply(Br.clone().transpose()));
+const restUp = wpos(bone.Neck).sub(wpos(bone.Hips));
+const BrHip = basis(wpos(bone.LeftUpLeg).sub(wpos(bone.RightUpLeg)), restUp);
+const BrChest = basis(wpos(bone.LeftArm).sub(wpos(bone.RightArm)), restUp);
+const BrHead = basis(wpos(bone.LeftArm).sub(wpos(bone.RightArm)), wpos(bone.Head).sub(wpos(bone.Neck)));
+const FEET = ['LeftFoot', 'RightFoot', 'LeftToeBase', 'RightToeBase', 'LeftToe_End', 'RightToe_End'].filter(n => bone[n]);
+const restMinY = Math.min(...FEET.map(n => wpos(bone[n]).y));
+const restHips = wpos(bone.Hips);
+const legB = wpos(bone.LeftUpLeg).distanceTo(wpos(bone.LeftLeg)) + wpos(bone.LeftLeg).distanceTo(wpos(bone.LeftFoot));
+
+// 화면 이동량: 원본 화소 → 봉식이 미터 (다리 길이 비)
+const hipX = [], legPx = [];
+for (let i = 0; i < N; i++) {
+  const L = M.lm[i];
+  hipX.push((L[46] + L[48]) / 2);
+  legPx.push(Math.hypot(L[46] - L[50], L[47] - L[51]) + Math.hypot(L[50] - L[54], L[51] - L[55]));
+}
+const med = a => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+const hipX0 = med(hipX), mPerPx = legB / [...legPx].sort((x, y) => x - y)[Math.floor(N * .9)];
+
+function setWorldQuat(b, qw) {
+  const pq = wquat(b.parent).invert();
+  b.quaternion.copy(pq.multiply(qw));
+  b.updateMatrixWorld(true);
+}
+function aim(b, child, dir) {
+  const cur = wpos(child).sub(wpos(b)).normalize();
+  setWorldQuat(b, new THREE.Quaternion().setFromUnitVectors(cur, dir.clone().normalize()).multiply(wquat(b)));
+}
+function twist(b, child, curSide, tgtSide, amount = 1) {
+  const ax = wpos(child).sub(wpos(b)).normalize();
+  const c = curSide.clone().addScaledVector(ax, -curSide.dot(ax)), g = tgtSide.clone().addScaledVector(ax, -tgtSide.dot(ax));
+  if (c.lengthSq() < 1e-8 || g.lengthSq() < 1e-8) return 0;
+  const ang = Math.atan2(ax.dot(new THREE.Vector3().crossVectors(c, g)), c.dot(g));
+  setWorldQuat(b, new THREE.Quaternion().setFromAxisAngle(ax, ang * amount).multiply(wquat(b)));
+  return ang;
+}
+
+// ── 손 모양: 박자마다 하나(data/hands-beats.json, 아래 표에서 고침) → 손가락 마디 굽힘 ───────────────
+// 각 손가락 [1·2·3마디 굽힘°]. b004(Flow)에서 또렷하게 읽히던 손 모양들을 사전으로 둔다.
+const F_OPEN = [8, 12, 8], F_FLAT = [0, 0, 0], F_CURL = [80, 95, 70];
+const SHAPES = {
+  open: { Thumb: [0, 10, 10], Index: F_OPEN, Middle: F_OPEN, Ring: [10, 14, 10], Pinky: [12, 16, 10] },
+  palm: { Thumb: [0, 0, 0], Index: F_FLAT, Middle: F_FLAT, Ring: F_FLAT, Pinky: F_FLAT },
+  thumb: { Thumb: [0, 0, 0], Index: F_CURL, Middle: F_CURL, Ring: F_CURL, Pinky: F_CURL },
+  gun: { Thumb: [0, 0, 0], Index: F_FLAT, Middle: F_CURL, Ring: F_CURL, Pinky: F_CURL },
+  point: { Thumb: [0, 30, 40], Index: F_FLAT, Middle: F_CURL, Ring: F_CURL, Pinky: F_CURL },
+  fist: { Thumb: [0, 30, 40], Index: F_CURL, Middle: F_CURL, Ring: F_CURL, Pinky: F_CURL },
+};
+const SHAPE_NAMES = { open: '편 손', palm: '손바닥', thumb: '엄지척', gun: '총', point: '가리키기', fist: '주먹' };
+const FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
+const beatIndex = t => { let i = 0; while (i + 1 < HB.beats.length && HB.beats[i + 1].t <= t) i++; return i; };
+const xAxis = new THREE.Vector3(1, 0, 0);
+function shapeAt(side, t) {        // 박이 바뀌기 0.1초 전부터 다음 모양으로 넘어간다
+  const i = beatIndex(t), B = HB.beats;
+  const cur = SHAPES[B[i][side]] ?? SHAPES.open;
+  const nx = B[i + 1] ? SHAPES[B[i + 1][side]] ?? SHAPES.open : cur;
+  const k = B[i + 1] ? THREE.MathUtils.smoothstep(t, B[i + 1].t - .1, B[i + 1].t) : 0;
+  const out = {};
+  for (const f of FINGERS) out[f] = cur[f].map((v, j) => v + (nx[f][j] - v) * k);
+  return out;
+}
+function applyFingers(mixSide, t) {
+  const sh = shapeAt(MP[mixSide].hand, t);
+  for (const f of FINGERS) for (let k = 1; k <= 3; k++) {
+    const b = bone[`${mixSide}Hand${f}${k}`];
+    if (b) b.quaternion.copy(rest[`${mixSide}Hand${f}${k}`].q).multiply(new THREE.Quaternion().setFromAxisAngle(xAxis, THREE.MathUtils.degToRad(sh[f][k - 1])));
+  }
+}
+
+// ── 몸 충돌: 손·팔꿈치가 몸통 타원체·머리 구 안에 들어가면 표면 밖으로 밀고 팔을 두 마디 IK로 다시 편다 ─────
+const shapes = [];
+if (COLLIDE) {
+  model.updateMatrixWorld(true);
+  const t = COLLIDE.torso, h = COLLIDE.head;
+  shapes.push({ bone: bone[t.bone], restInv: bone[t.bone].matrixWorld.clone().invert(), c: new THREE.Vector3(...t.center), r: new THREE.Vector3(...t.radii).multiplyScalar(1.06) });
+  shapes.push({ bone: bone[h.bone], restInv: bone[h.bone].matrixWorld.clone().invert(), c: new THREE.Vector3(...h.center), r: new THREE.Vector3(1, 1, 1).multiplyScalar(h.radius * 1.05) });
+}
+function pushOut(p) {              // 세계 좌표 점 → 몸 밖으로 민 점(안 들어갔으면 그대로)
+  let q = p.clone(), moved = false;
+  for (const S of shapes) {
+    const M = S.bone.matrixWorld.clone().multiply(S.restInv), Mi = M.clone().invert();
+    const l = q.clone().applyMatrix4(Mi).sub(S.c);
+    const n = Math.hypot(l.x / S.r.x, l.y / S.r.y, l.z / S.r.z);
+    if (n < 1) { l.multiplyScalar(1 / Math.max(n, 1e-3)); q = l.add(S.c).applyMatrix4(M); moved = true; }
+  }
+  return moved ? q : null;
+}
+function solveArm(S, target, pole) {
+  const sh = wpos(bone[`${S}Arm`]), el = wpos(bone[`${S}ForeArm`]), wr = wpos(bone[`${S}Hand`]);
+  const a = sh.distanceTo(el), b = el.distanceTo(wr);
+  const dv = target.clone().sub(sh), d = THREE.MathUtils.clamp(dv.length(), Math.abs(a - b) + 1e-3, a + b - 1e-3);
+  const u = dv.normalize();
+  const pv = pole.clone().sub(sh); pv.addScaledVector(u, -pv.dot(u));
+  if (pv.lengthSq() < 1e-8) pv.set(0, -1, 0);
+  pv.normalize();
+  const x = (a * a - b * b + d * d) / (2 * d), y = Math.sqrt(Math.max(a * a - x * x, 0));
+  const e2 = sh.clone().addScaledVector(u, x).addScaledVector(pv, y), w2 = sh.clone().addScaledVector(u, d);
+  aim(bone[`${S}Arm`], bone[`${S}ForeArm`], e2.clone().sub(sh));
+  aim(bone[`${S}ForeArm`], bone[`${S}Hand`], w2.clone().sub(e2));
+}
+
+// ── 숙임: 원작은 허리를 90° 가까이 접고 머리를 턴다(11.9·22.9·26.4·31.3·39.2·51.7초 부근).
+// 이때 MediaPipe는 머리카락에 가린 어깨·팔을 잘못 잡아 몸통이 뒤집히거나(최대 156°) 팔이 뒤로 뻗친다.
+// 프레임마다 엉덩이가 보는 방향 기준 숙임각을 재서 튀는 값을 거르고(중앙값 9프레임, -20~95°),
+// 숙임 정도(35~65° → 0~1)만큼 몸통은 엉덩이 방향 그대로 깨끗하게 접고 팔은 무릎 쪽으로 늘어뜨린다(b004처럼).
+const UPY = new THREE.Vector3(0, 1, 0);
+const bendDeg = new Float32Array(N), bendW = new Float32Array(N);
+{
+  const raw = [];
+  for (let i = 0; i < N; i++) {
+    const w = M.world[i], v = k => new THREE.Vector3(w[3 * k], -w[3 * k + 1], -w[3 * k + 2]);
+    const across = v(MP.Left.hip).sub(v(MP.Right.hip)); across.y = 0;
+    const f = new THREE.Vector3().crossVectors(across, UPY).normalize();
+    const up = mid(v(MP.Left.sh), v(MP.Right.sh)).sub(mid(v(MP.Left.hip), v(MP.Right.hip)));
+    raw.push(THREE.MathUtils.radToDeg(Math.atan2(up.dot(f), up.dot(UPY))));
+  }
+  for (let i = 0; i < N; i++) {
+    const win = raw.slice(Math.max(0, i - 4), i + 5).sort((x, y) => x - y);
+    bendDeg[i] = THREE.MathUtils.clamp(win[win.length >> 1], -20, 95);
+    bendW[i] = THREE.MathUtils.smoothstep(bendDeg[i], 35, 65);
+  }
+}
+function bendAt(t) { const [i, a] = frameAt(t); return [bendDeg[i] + (bendDeg[i + 1] - bendDeg[i]) * a, bendW[i] + (bendW[i + 1] - bendW[i]) * a]; }
+
+function pose(t) {
+  for (const [n, b] of Object.entries(bone)) { b.quaternion.copy(rest[n].q); b.position.copy(rest[n].p); }
+  model.updateMatrixWorld(true);
+  const p = P3(t), L = MP.Left, R = MP.Right;
+  const hipM = mid(p[L.hip], p[R.hip]), shM = mid(p[L.sh], p[R.sh]);
+  const [bend, bw] = bendAt(t);
+  const hipAcross = p[L.hip].clone().sub(p[R.hip]);
+  let up = shM.clone().sub(hipM).normalize(), chestAcross = p[L.sh].clone().sub(p[R.sh]).normalize();
+  if (bw > 0) {
+    const fh = new THREE.Vector3().crossVectors(new THREE.Vector3(hipAcross.x, 0, hipAcross.z), UPY).normalize();
+    const b = THREE.MathUtils.degToRad(bend);
+    up.lerp(UPY.clone().multiplyScalar(Math.cos(b)).addScaledVector(fh, Math.sin(b)), bw).normalize();
+    chestAcross.lerp(hipAcross.clone().normalize(), bw);
+  }
+  const hang = new THREE.Vector3(0, -1, 0);          // 숙일 때 팔이 늘어지는 방향(아래 + 무릎 쪽 조금)
+  const qH = delta(basis(hipAcross, up), BrHip);
+  const qC = delta(basis(chestAcross, up), BrChest);
+  const W = n => rest[n].wq.clone();
+  setWorldQuat(bone.Hips, qH.clone().multiply(W('Hips')));
+  setWorldQuat(bone.Spine, qH.clone().slerp(qC, 1 / 3).multiply(W('Spine')));
+  setWorldQuat(bone.Spine1, qH.clone().slerp(qC, 2 / 3).multiply(W('Spine1')));
+  setWorldQuat(bone.Spine2, qC.clone().multiply(W('Spine2')));
+  const earM = mid(p[L.ear], p[R.ear]);
+  const qHd = delta(basis(p[L.ear].clone().sub(p[R.ear]), earM.clone().sub(shM)), BrHead);
+  if (bw > 0) qHd.slerp(qC, bw);                    // 숙일 때 머리는 등줄기를 따라 아래로
+  {                                                  // 머리를 털 때 귀 인식이 흔들려 고개가 크게 꺾이므로 몸통 기준 30° 안으로
+    const rel = qC.clone().invert().multiply(qHd), ang = 2 * Math.acos(Math.min(1, Math.abs(rel.w))), MAX = THREE.MathUtils.degToRad(30);
+    if (ang > MAX) qHd.copy(qC).multiply(new THREE.Quaternion().slerp(rel, MAX / ang));
+  }
+  setWorldQuat(bone.Neck, qC.clone().slerp(qHd, .5).multiply(W('Neck')));
+  setWorldQuat(bone.Head, qHd.clone().multiply(W('Head')));
+  for (const S of ['Left', 'Right']) {
+    const m = MP[S];
+    const toKnee = p[m.kn].clone().sub(p[m.sh]).normalize();
+    const hangS = hang.clone().multiplyScalar(.7).addScaledVector(toKnee, .3).normalize();
+    const lim = (d, k = 1) => (bw > 0 ? d.normalize().lerp(hangS, bw * k).normalize() : d);
+    aim(bone[`${S}Arm`], bone[`${S}ForeArm`], lim(p[m.el].clone().sub(p[m.sh])));
+    aim(bone[`${S}ForeArm`], bone[`${S}Hand`], lim(p[m.wr].clone().sub(p[m.el])));
+    const handDir = lim(mid(p[m.ix], p[m.pk]).sub(p[m.wr])), tgt = p[m.ix].clone().sub(p[m.pk]);
+    const orientHand = () => {
+      aim(bone[`${S}Hand`], bone[`${S}HandMiddle1`] ?? bone[`${S}HandIndex1`], handDir);
+      // 손바닥 방향: 검지-새끼 마디 선을 맞춘다. 절반은 아래팔이 비틀어 손목이 꼬이지 않게
+      const side = () => wpos(bone[`${S}HandIndex1`]).sub(wpos(bone[`${S}HandPinky1`] ?? bone[`${S}HandIndex1`]));
+      twist(bone[`${S}ForeArm`], bone[`${S}Hand`], side(), tgt, .5);
+      twist(bone[`${S}Hand`], bone[`${S}HandMiddle1`] ?? bone[`${S}HandIndex1`], side(), tgt, 1);
+    };
+    orientHand();
+    if (shapes.length) {
+      // 손바닥 가운데·손목·팔꿈치가 몸에 묻히면 밖으로 민 자리로 팔을 다시 편다
+      const palm = wpos(bone[`${S}HandMiddle1`] ?? bone[`${S}Hand`]), wr = wpos(bone[`${S}Hand`]);
+      const pp = pushOut(palm), pw = pushOut(wr);
+      let target = null;
+      if (pp || pw) target = wr.clone().add(pp ? pp.sub(palm) : new THREE.Vector3()).add(pw && !pp ? pw.sub(wr) : new THREE.Vector3());
+      const el = wpos(bone[`${S}ForeArm`]), pe = pushOut(el);
+      if (target || pe) {
+        const pole = pe ? pe.clone().addScaledVector(pe.clone().sub(el), 2) : el;
+        solveArm(S, target ?? wr, pole);
+        orientHand();
+      }
+    }
+    aim(bone[`${S}UpLeg`], bone[`${S}Leg`], p[m.kn].clone().sub(p[m.hip]));
+    aim(bone[`${S}Leg`], bone[`${S}Foot`], p[m.an].clone().sub(p[m.kn]));
+    aim(bone[`${S}Foot`], bone[`${S}ToeBase`], p[m.ft].clone().sub(p[m.an]));
+  }
+  applyFingers('Left', t); applyFingers('Right', t);
+  model.updateMatrixWorld(true);
+  // 이동: 좌우는 원본 엉덩이 화면 이동, 높이는 가장 낮은 발을 바닥에 붙인다
+  const [i, a] = frameAt(t);
+  const dx = ((hipX[i] + (hipX[i + 1] - hipX[i]) * a) - hipX0) * mPerPx;
+  const minY = Math.min(...FEET.map(n => wpos(bone[n]).y));
+  const hw = wpos(bone.Hips);
+  hw.x = restHips.x + dx; hw.y += restMinY - minY;
+  bone.Hips.position.copy(bone.Hips.parent.worldToLocal(hw));
+  model.updateMatrixWorld(true);
+}
+
+// ── 카메라 ────────────────────────────────────────────────
+const CAMS = { front: [0, .12, 3.6], three4: [.65, .2, 3.6], side: [Math.PI / 2, .1, 3.6] };
+const cam = { az: 0, el: .12, r: 3.6 };
+let follow = 0;
+function placeCamera() {
+  const tx = follow, ty = .78;
+  camera.position.set(tx + cam.r * Math.sin(cam.az) * Math.cos(cam.el), ty + cam.r * Math.sin(cam.el), cam.r * Math.cos(cam.az) * Math.cos(cam.el));
+  camera.lookAt(tx, ty, 0);
+}
+for (const b of document.querySelectorAll('[data-cam]')) b.onclick = () => {
+  [cam.az, cam.el, cam.r] = CAMS[b.dataset.cam];
+  for (const x of document.querySelectorAll('[data-cam]')) x.setAttribute('aria-pressed', x === b);
+};
+let drag = null;
+canvas.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY, cam.az, cam.el]; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', e => {
+  if (!drag) return;
+  cam.az = drag[2] - (e.clientX - drag[0]) * .008;
+  cam.el = THREE.MathUtils.clamp(drag[3] + (e.clientY - drag[1]) * .006, -.2, 1.2);
+});
+canvas.addEventListener('pointerup', () => { drag = null; });
+canvas.addEventListener('wheel', e => { e.preventDefault(); cam.r = THREE.MathUtils.clamp(cam.r * (1 + e.deltaY * .001), 1.2, 9); }, { passive: false });
+
+// ── 재생 ─────────────────────────────────────────────────
+const fmt = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+function setPlaying(on) {
+  if (on) { if (audio.currentTime >= DUR - .05) audio.currentTime = 0; audio.play(); video.play().catch(() => {}); }
+  else { audio.pause(); video.pause(); }
+  $('play').textContent = on ? '❚❚ 정지' : '▶ 재생';
+}
+$('play').onclick = () => setPlaying(audio.paused);
+audio.onended = () => setPlaying(false);
+$('seek').oninput = e => { audio.currentTime = +e.target.value; video.currentTime = +e.target.value; };
+$('speed').onchange = e => { audio.playbackRate = video.playbackRate = +e.target.value; };
+$('showBones').onchange = e => { helper.visible = e.target.checked; };
+addEventListener('keydown', e => { if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); setPlaying(audio.paused); } });
+// 손 모양 표: 지금 박의 왼손·오른손을 고르면 그 박에 저장(서버 data/hands-beats.json)
+const selL = $('handL'), selR = $('handR');
+if (selL) for (const sel of [selL, selR]) for (const [k, v] of Object.entries(SHAPE_NAMES)) sel.add(new Option(v, k));
+let shownBeat = -1;
+function syncHandUI(t) {
+  if (!selL) return;
+  const i = beatIndex(t);
+  if (i === shownBeat) return;
+  shownBeat = i;
+  $('beatNo').textContent = `${i + 1}박 / ${HB.beats.length}`;
+  selL.value = HB.beats[i].L; selR.value = HB.beats[i].R;
+}
+async function saveHands() {
+  HB.edited = true;
+  const r = await fetch('api/hands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(HB) });
+  $('saved').textContent = r.ok ? '저장됨' : '저장 실패';
+  setTimeout(() => { $('saved').textContent = ''; }, 1500);
+}
+const setShape = (side, v) => { HB.beats[beatIndex(audio.currentTime)][side] = v; saveHands(); };
+if (selL) {
+selL.onchange = () => setShape('L', selL.value);
+selR.onchange = () => setShape('R', selR.value);
+$('beatPrev').onclick = () => { const i = Math.max(beatIndex(audio.currentTime) - 1, 0); audio.currentTime = video.currentTime = HB.beats[i].t + .01; };
+$('beatNext').onclick = () => { const i = Math.min(beatIndex(audio.currentTime) + 1, HB.beats.length - 1); audio.currentTime = video.currentTime = HB.beats[i].t + .01; };
+}
+
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+function frame() {
+  const t = Math.min(audio.currentTime, DUR - 1e-3);
+  if (!audio.paused && !$('audio') && audio.currentTime >= DUR - 1e-3) setPlaying(false);
+  if (!audio.paused && Math.abs(video.currentTime - t) > .12) video.currentTime = t;
+  if (audio.paused && Math.abs(video.currentTime - t) > .02) video.currentTime = t;
+  pose(t);
+  follow += (bone.Hips.getWorldPosition(new THREE.Vector3()).x - follow) * .08;
+  shadow.position.x = wpos(bone.Hips).x; shadow.position.z = wpos(bone.Hips).z;
+  placeCamera();
+  renderer.render(scene, camera);
+  drawStick($('stick'), t, true);
+  const ov = $('overlay');
+  if (ov) { if ($('showOverlay').checked) drawStick(ov, t, false); else ov.getContext('2d').clearRect(0, 0, ov.width, ov.height); }
+  $('seek').value = t; $('clock').textContent = `${fmt(t)} / ${fmt(DUR)}`;
+  syncHandUI(t);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__v2 = { bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
