@@ -126,7 +126,7 @@ const HAS_SWAP = Object.keys(swapHands.Left).length > 0;
 // 턱~깃 사이 목 살을 드러낸다(목·머리 경계 정점이 늘어나며 목이 생긴다). ?head=, ?neck= 로 바꿔 볼 수 있다.
 const QS = new URLSearchParams(location.search);
 let HEAD_SCALE = +(QS.get('head') ?? (MODEL_KEY === 'dance2' ? .85 : 1));   // 0.67·0.75·0.8·0.85·0.9·1.0 비교 후 0.85(2026-10-31, 사용자: 보기 좋게 맞춰 달라)
-let NECK_UP = +(QS.get('neck') ?? (MODEL_KEY === 'dance2' ? .09 : 0));   // 0·.06·.10·.14 비교: .09에서 턱과 깃 사이 목이 보이고 덜 늘어난다
+let NECK_UP = +(QS.get('neck') ?? 0);   // 목은 모델에 넣었다(b003 neck_fix.py: 턱 깎기 + 목 원기둥). 머리 뼈를 올리면 턱 살이 늘어나 이중턱이 됐다
 for (const S of ['Left', 'Right']) for (const o of Object.values(swapHands[S])) o.traverse(x => { x.frustumCulled = false; });
 const bone = {};
 for (const b of skinned.skeleton.bones) bone[b.name.replace(/^mixamorig:?/, '')] = b;
