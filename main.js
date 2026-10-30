@@ -125,12 +125,14 @@ model.traverse(o => {
   if (o.isSkinnedMesh) { o.frustumCulled = false; if (!m && (!skinned || o.geometry.attributes.position.count > skinned.geometry.attributes.position.count)) skinned = o; }
 });
 const HAS_SWAP = Object.keys(swapHands.Left).length > 0;
-// ── 입 모양: 발음별 얼굴 텍스처(ChatGPT 입 그림을 원화 얼굴에 맞춰 붙인 것)를 노래 시간표(data/visemes.json, 30fps)대로 바꾼다
+// ── 입 모양: 얼굴 텍스처(ChatGPT 입 그림을 원화 얼굴에 맞춰 붙인 것)를 노래 시간표(data/visemes.json, 30fps)대로 바꾼다.
+// 노래용 입(open1~4: 소리 크기만큼 아래턱이 내려감, round1·o·round2: 둥근 입) — 쓰는 그림 목록은 VIS.shapes
 const MOUTHS = {};
 if (MODEL_KEY === 'remake' && VIS) {
   const tl = new THREE.TextureLoader();
-  await Promise.all(['rest', 'm', 'a', 'e', 'i', 'o', 'u'].map(async v => {
-    const t = await tl.loadAsync(`media/mouth/texture-${v}.jpg`);
+  await Promise.all((VIS.shapes ?? ['rest', 'm', 'a', 'e', 'i', 'o', 'u']).map(async v => {
+    const t = await tl.loadAsync(`media/mouth/texture-${v}.jpg`).catch(() => null);   // 없는 그림은 rest로
+    if (!t) return;
     t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
     MOUTHS[v] = t;
   }));
@@ -160,6 +162,7 @@ function applyMouth(t) {
 // 머리 크기·목: 2/3(0.67)은 너무 작다 → ×1.5 = 1.0(2026-10-31). 목이 없어 보여 머리를 목 방향으로 NECK_UP만큼 올려
 // 턱~깃 사이 목 살을 드러낸다(목·머리 경계 정점이 늘어나며 목이 생긴다). ?head=, ?neck= 로 바꿔 볼 수 있다.
 const QS = new URLSearchParams(location.search);
+let SHOULDER_K = +(QS.get('shoulder') ?? 0);           // 팔 들 때 쇄골이 따라 올라가는 비율. 0.4는 옆구리가 뾰족하게 끌려 기본은 끔(?shoulder=.4로 비교)
 let HEAD_SCALE = +(QS.get('head') ?? (MODEL_KEY === 'dance2' ? .85 : 1));   // remake는 원화에서부터 비율을 맞춰 1   // 0.67·0.75·0.8·0.85·0.9·1.0 비교 후 0.85(2026-10-31, 사용자: 보기 좋게 맞춰 달라)
 let NECK_UP = +(QS.get('neck') ?? 0);   // 목은 모델에 넣었다(b003 neck_fix.py: 턱 깎기 + 목 원기둥). 머리 뼈를 올리면 턱 살이 늘어나 이중턱이 됐다
 for (const S of ['Left', 'Right']) for (const o of Object.values(swapHands[S])) o.traverse(x => { x.frustumCulled = false; });
@@ -352,7 +355,17 @@ function pose(t) {
     const toKnee = p[m.kn].clone().sub(p[m.sh]).normalize();
     const hangS = hang.clone().multiplyScalar(.7).addScaledVector(toKnee, .3).normalize();
     const lim = (d, k = 1) => (bw > 0 ? d.normalize().lerp(hangS, bw * k).normalize() : d);
-    aim(bone[`${S}Arm`], bone[`${S}ForeArm`], lim(p[m.el].clone().sub(p[m.sh])));
+    const upDir = lim(p[m.el].clone().sub(p[m.sh]));
+    // 팔을 어깨 위로 들면 쇄골(Shoulder)도 따라 올린다: 위팔이 몸통 아래 방향에서 70°를 넘으면 넘은 각의 40%(최대 28°).
+    // 겨드랑이에 붙어 만들어진 재킷 옆판이 팔 하나에만 끌려 날개처럼 늘어나는 것을 어깨 전체로 나눈다(2026-10-31).
+    if (bone[`${S}Shoulder`]) {
+      const down = new THREE.Vector3(0, -1, 0).applyQuaternion(wquat(bone.Spine2)), d = upDir.clone().normalize();
+      const elev = Math.acos(THREE.MathUtils.clamp(down.dot(d), -1, 1)), over = elev - THREE.MathUtils.degToRad(70);
+      const ax = new THREE.Vector3().crossVectors(down, d);
+      if (over > 0 && ax.lengthSq() > 1e-6)
+        setWorldQuat(bone[`${S}Shoulder`], new THREE.Quaternion().setFromAxisAngle(ax.normalize(), Math.min(over * SHOULDER_K, THREE.MathUtils.degToRad(28))).multiply(wquat(bone[`${S}Shoulder`])));
+    }
+    aim(bone[`${S}Arm`], bone[`${S}ForeArm`], upDir);
     aim(bone[`${S}ForeArm`], bone[`${S}Hand`], lim(p[m.wr].clone().sub(p[m.el])));
     const handDir = lim(mid(p[m.ix], p[m.pk]).sub(p[m.wr])), tgt = p[m.ix].clone().sub(p[m.pk]);
     const orientHand = () => {
@@ -494,4 +507,4 @@ function frame() {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__v2 = { setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
+window.__v2 = { setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
