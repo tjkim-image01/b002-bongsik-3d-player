@@ -138,6 +138,19 @@ if (MODEL_KEY === 'remake' && VIS) {
 }
 const bodyMat = skinned.material;
 let shownMouth = null;
+// 가사 자막(로컬 전용 data/lyrics.srt — 공개본에는 없어서 자막도 안 나온다)과 단어 시간(lyrics.json)으로 지금 부르는 단어를 강조
+const SRT = await fetch('data/lyrics.srt').then(r => r.ok ? r.text() : '').catch(() => '');
+const WORDS = await fetch('data/lyrics.json').then(r => r.ok ? r.json() : null).then(j => j?.words ?? []).catch(() => []);
+const srtSec = s => { const [h, m, x] = s.trim().replace(',', '.').split(':'); return +h * 3600 + +m * 60 + +x; };
+const LINES = SRT.split(/\n\s*\n/).map(b => b.trim().split('\n')).filter(b => b.length >= 3)
+  .map(([, tc, ...txt]) => { const [a, b] = tc.split('-->').map(srtSec); return { a, b, words: WORDS.filter(w => w.t0 >= a - .01 && w.t1 <= b + .01) }; });
+const lyricEl = document.getElementById('lyric');
+let shownLyric = '';
+function applyLyric(t) {
+  const l = LINES.find(l => t >= l.a && t <= l.b + .3);
+  const html = l ? l.words.map(w => t >= w.t0 && t < w.t1 ? `<b>${w.text}</b>` : w.text).join(' ') : '';
+  if (html !== shownLyric) { lyricEl.innerHTML = html; shownLyric = html; }
+}
 function applyMouth(t) {
   if (!VIS || !MOUTHS.rest) return;
   const v = VIS.frames[Math.min(VIS.frames.length - 1, Math.max(0, Math.round(t * VIS.fps)))] ?? 'rest';
@@ -381,7 +394,7 @@ function pose(t) {
     }
   }
   applyFingers('Left', t); applyFingers('Right', t);
-  applyMouth(t);
+  applyMouth(t); applyLyric(t);
   model.updateMatrixWorld(true);
   // 이동: 좌우는 원본 엉덩이 화면 이동, 높이는 가장 낮은 발을 바닥에 붙인다
   const [i, a] = frameAt(t);
