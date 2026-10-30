@@ -122,8 +122,11 @@ model.traverse(o => {
   if (o.isSkinnedMesh) { o.frustumCulled = false; if (!m && (!skinned || o.geometry.attributes.position.count > skinned.geometry.attributes.position.count)) skinned = o; }
 });
 const HAS_SWAP = Object.keys(swapHands.Left).length > 0;
-// 머리 크기: 춤 모델은 머리를 2/3로 줄인다(2026-10-31 사용자: "얼굴도 2/3 정도로"). ?head=1 로 원래 크기
-const HEAD_SCALE = +(new URLSearchParams(location.search).get('head') ?? (MODEL_KEY === 'dance2' ? 0.67 : 1));
+// 머리 크기·목: 2/3(0.67)은 너무 작다 → ×1.5 = 1.0(2026-10-31). 목이 없어 보여 머리를 목 방향으로 NECK_UP만큼 올려
+// 턱~깃 사이 목 살을 드러낸다(목·머리 경계 정점이 늘어나며 목이 생긴다). ?head=, ?neck= 로 바꿔 볼 수 있다.
+const QS = new URLSearchParams(location.search);
+let HEAD_SCALE = +(QS.get('head') ?? (MODEL_KEY === 'dance2' ? .85 : 1));   // 0.67·0.75·0.8·0.85·0.9·1.0 비교 후 0.85(2026-10-31, 사용자: 보기 좋게 맞춰 달라)
+let NECK_UP = +(QS.get('neck') ?? (MODEL_KEY === 'dance2' ? .09 : 0));   // 0·.06·.10·.14 비교: .09에서 턱과 깃 사이 목이 보이고 덜 늘어난다
 for (const S of ['Left', 'Right']) for (const o of Object.values(swapHands[S])) o.traverse(x => { x.frustumCulled = false; });
 const bone = {};
 for (const b of skinned.skeleton.bones) bone[b.name.replace(/^mixamorig:?/, '')] = b;
@@ -304,7 +307,9 @@ function pose(t) {
   }
   setWorldQuat(bone.Neck, qC.clone().slerp(qHd, .5).multiply(W('Neck')));
   setWorldQuat(bone.Head, qHd.clone().multiply(W('Head')));
-  bone.Head.scale.setScalar(HEAD_SCALE); bone.Head.updateMatrixWorld(true);
+  bone.Head.scale.setScalar(HEAD_SCALE);
+  if (NECK_UP) bone.Head.position.copy(rest.Head.p).add(rest.Head.p.clone().normalize().multiplyScalar(NECK_UP / bone.Neck.getWorldScale(new THREE.Vector3()).y));
+  bone.Head.updateMatrixWorld(true);
   for (const S of ['Left', 'Right']) {
     const m = MP[S];
     const toKnee = p[m.kn].clone().sub(p[m.sh]).normalize();
@@ -438,4 +443,4 @@ function frame() {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__v2 = { bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
+window.__v2 = { setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
