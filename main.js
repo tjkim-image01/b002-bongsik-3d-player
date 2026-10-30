@@ -34,8 +34,8 @@ const video = $('video') ?? { currentTime: 0, playbackRate: 1, play: () => Promi
 // MediaPipe 좌표는 화면 그대로(x 오른쪽)이고, 왼쪽 표식(11,13,15…)은 카메라를 본 댄서의 왼쪽 = 화면 오른쪽이다.
 // 봉식이도 +z(카메라)를 보고 Left가 화면 오른쪽이므로 같은 이름끼리 잇는다 → 화면에 보이는 원본 모양 그대로.
 const MP = {
-  Left: { sh: 11, el: 13, wr: 15, pk: 17, ix: 19, hip: 23, kn: 25, an: 27, ft: 31, ear: 7, hand: 'L' },
-  Right: { sh: 12, el: 14, wr: 16, pk: 18, ix: 20, hip: 24, kn: 26, an: 28, ft: 32, ear: 8, hand: 'R' },
+  Left: { sh: 11, el: 13, wr: 15, pk: 17, ix: 19, hip: 23, kn: 25, an: 27, ft: 31, hl: 29, ear: 7, hand: 'L' },
+  Right: { sh: 12, el: 14, wr: 16, pk: 18, ix: 20, hip: 24, kn: 26, an: 28, ft: 32, hl: 30, ear: 8, hand: 'R' },
 };
 const frameAt = t => { const f = THREE.MathUtils.clamp(t * FPS, 0, N - 1.001); const i = Math.floor(f); return [i, f - i]; };
 function P3(t) {                 // MediaPipe 3D(엉덩이 중심, y 아래, z 카메라 쪽 음수) → three(y 위, 카메라 쪽 +z)
@@ -150,6 +150,8 @@ const BrChest = basis(wpos(bone.LeftArm).sub(wpos(bone.RightArm)), restUp);
 const BrHead = basis(wpos(bone.LeftArm).sub(wpos(bone.RightArm)), wpos(bone.Head).sub(wpos(bone.Neck)));
 const FEET = ['LeftFoot', 'RightFoot', 'LeftToeBase', 'RightToeBase', 'LeftToe_End', 'RightToe_End'].filter(n => bone[n]);
 const restMinY = Math.min(...FEET.map(n => wpos(bone[n]).y));
+const restFootDir = {};
+for (const S of ['Left', 'Right']) { const d = wpos(bone[`${S}ToeBase`]).sub(wpos(bone[`${S}Foot`])); d.y = 0; restFootDir[S] = d.normalize(); }
 const restHips = wpos(bone.Hips);
 const legB = wpos(bone.LeftUpLeg).distanceTo(wpos(bone.LeftLeg)) + wpos(bone.LeftLeg).distanceTo(wpos(bone.LeftFoot));
 
@@ -341,7 +343,20 @@ function pose(t) {
     }
     aim(bone[`${S}UpLeg`], bone[`${S}Leg`], p[m.kn].clone().sub(p[m.hip]));
     aim(bone[`${S}Leg`], bone[`${S}Foot`], p[m.an].clone().sub(p[m.kn]));
-    aim(bone[`${S}Foot`], bone[`${S}ToeBase`], p[m.ft].clone().sub(p[m.an]));
+    // 발: 원본 발끝 인식이 흔들려 발끝이 50~70°씩 아래로 꺾이면 신발이 앞뒤로 비틀려 늘어난다(사용자 지적).
+    // 발바닥은 쉬는 자세처럼 바닥과 나란히 두고, 발이 향하는 좌우 방향(뒤꿈치→발끝을 바닥에 눕힌 방향)만 따른다.
+    // 엉덩이가 보는 방향에서 ±45° 안으로 제한한다.
+    {
+      const fd = p[m.ft].clone().sub(p[m.hl]); fd.y = 0;
+      const hipF = new THREE.Vector3().crossVectors(new THREE.Vector3(hipAcross.x, 0, hipAcross.z), UPY).normalize();
+      if (fd.lengthSq() < 1e-6) fd.copy(hipF); else fd.normalize();
+      const yawRel = Math.atan2(new THREE.Vector3().crossVectors(hipF, fd).y, hipF.dot(fd));
+      const lim = THREE.MathUtils.clamp(yawRel, -Math.PI / 4, Math.PI / 4);
+      const want = hipF.clone().applyAxisAngle(UPY, lim);
+      const restDir = restFootDir[S];                      // 쉬는 자세 발 방향(바닥에 눕힌 것)
+      const qYaw = new THREE.Quaternion().setFromUnitVectors(restDir, want);
+      setWorldQuat(bone[`${S}Foot`], qYaw.multiply(rest[`${S}Foot`].wq.clone()));
+    }
   }
   applyFingers('Left', t); applyFingers('Right', t);
   model.updateMatrixWorld(true);
