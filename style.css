@@ -33,5 +33,4 @@ label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted)
 #saved { color: var(--teal); font-size: 12px; min-width: 40px; }
 .cmp { color: var(--muted); font-size: 12px; }
 
-/* 공개판: 졸라맨 + 3D 두 칸 */
-body[data-mode="public"] main { grid-template-columns: 1fr 1.6fr; height: calc(100vh - 150px); }
+body[data-mode="public"] main { height: calc(100vh - 150px); }

@@ -12,9 +12,16 @@
 <body data-mode="public">
 <header>
   <h1>b002 v2 · 3D 봉식이 「찐이야」 1분</h1>
-  <p>원작 안무를 졸라맨(관절)으로 뽑아 3D 봉식이가 그대로 따라 춘다 · 1분 · 소리 없음</p>
+  <p>원작 댄서 관절(졸라맨)을 그대로 따라 움직이는 3D 봉식이 · 원곡 12~72초</p>
 </header>
 <main>
+  <section class="panel">
+    <h2>원작 댄서</h2>
+    <div class="stage" id="srcStage">
+      <video id="video" src="media/dancer.mp4" muted playsinline preload="auto"></video>
+      <canvas id="overlay"></canvas>
+    </div>
+  </section>
   <section class="panel">
     <h2>졸라맨 (원작 관절)</h2>
     <div class="stage"><canvas id="stick"></canvas></div>
@@ -31,7 +38,7 @@
   <span id="clock">0:00.0 / 1:00.0</span>
   <input id="seek" type="range" min="0" max="60" step="0.01" value="0" aria-label="재생 위치">
   <label>속도 <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select></label>
-  
+  <label><input type="checkbox" id="showOverlay" checked> 원작 위 졸라맨</label>
   <label><input type="checkbox" id="showBones"> 3D 뼈대</label>
   <span class="cams">
     <button data-cam="front" aria-pressed="true">정면</button>
@@ -39,6 +46,7 @@
     <button data-cam="side">옆</button>
   </span>
 </footer>
+<audio id="audio" src="media/jjin-12-72s.m4a" preload="auto"></audio>
 <script type="module" src="main.js"></script>
 </body>
 </html>
