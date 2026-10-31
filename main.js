@@ -179,7 +179,9 @@ model.traverse(o => {
   if (m) swapHands[m[1]][m[2]] = o;
   if (o.isSkinnedMesh) { o.frustumCulled = false; if (!m && (!skinned || o.geometry.attributes.position.count > skinned.geometry.attributes.position.count)) skinned = o; }
 });
-const HAS_SWAP = Object.keys(swapHands.Left).length > 0;
+// 손 하나 + 손가락 뼈(Hand_*_rig, b003/remake-v1/hand_rig.py)면 갈아 끼우지 않고 손가락을 굽혀 모양을 만든다
+// (2026-10-31 사용자: 손 모양별 손을 갈아 끼우니 바뀔 때마다 새 손이 다른 곳을 보고 타타닥 튄다)
+const HAS_SWAP = Object.keys(swapHands.Left).some(k => k !== 'rig');
 // ── 입 모양: 얼굴 텍스처(ChatGPT 입 그림을 원화 얼굴에 맞춰 붙인 것)를 노래 시간표(data/visemes.json, 30fps)대로 바꾼다.
 // 노래용 입(open1~4: 소리 크기만큼 아래턱이 내려감, round1·o·round2: 둥근 입) — 쓰는 그림 목록은 VIS.shapes
 const MOUTHS = {};
@@ -469,6 +471,12 @@ function applySwap(mixSide, t) {
   const k = B[i + 1] && t > B[i + 1].t - .06 ? i + 1 : i;
   const want = swapHands[mixSide][B[k][side]] ? B[k][side] : (B[k][side] === 'relaxed' && swapHands[mixSide].fist ? 'fist' : 'open');
   for (const [n, o] of Object.entries(swapHands[mixSide])) o.visible = n === want;
+}
+function rigPts(S, names) {           // 손 리그: 손가락 뼈 위치(손 뼈 기준, 손 뼈 원점에서) — 엄지척·하트 방향 맞추기에 쓴다
+  const hb = bone[`${S}Hand`]; if (!swapHands[S].rig) return null;
+  hb.updateMatrixWorld(true);
+  const o = wpos(hb), q = wquat(hb).invert();
+  return names.map(n => bone[`${S}Hand${n}`]).filter(Boolean).map(b => wpos(b).sub(o).applyQuaternion(q));
 }
 function applyFingers(mixSide, t) {
   if (HAS_SWAP) return applySwap(mixSide, t);
@@ -767,13 +775,15 @@ function pose(t) {
   // 둘 중 손 끝 쪽(검지)이 위에 오는 쪽을 쓴다(2026-10-31 사용자: '사랑할 거야' 엄지·검지 맞대 손가락 하트)
   for (const S of ['Left', 'Right']) {
     const B = HB.beats, k = beatIndex(t), side = MP[S].hand, kk = B[k + 1] && t > B[k + 1].t - .06 ? k + 1 : k;
-    if (B[kk][side] !== 'heart' || !HEART_PTS[S]) continue;
+    if (B[kk][side] !== 'heart') continue;
+    const HP = HEART_PTS[S] ?? rigPts(S, ['Thumb4', 'Index4', 'Middle1', 'Pinky1']);
+    if (!HP) continue;
     const hb = bone[`${S}Hand`], q = wquat(hb), ax = new THREE.Vector3(0, 1, 0).applyQuaternion(q).normalize();
     let best = null;
     for (let deg = 0; deg < 360; deg += 15) {
       const qa = new THREE.Quaternion().setFromAxisAngle(ax, THREE.MathUtils.degToRad(deg)).multiply(q);
       let lo = 1e9, hi = -1e9, hiAx = 0, loAx = 0;
-      for (const p of HEART_PTS[S]) { const w = p.clone().applyQuaternion(qa); if (w.y > hi) { hi = w.y; hiAx = p.y; } if (w.y < lo) { lo = w.y; loAx = p.y; } }
+      for (const p of HP) { const w = p.clone().applyQuaternion(qa); if (w.y > hi) { hi = w.y; hiAx = p.y; } if (w.y < lo) { lo = w.y; loAx = p.y; } }
       const score = (hi - lo) + (hiAx > loAx ? .02 : 0);              // 키 + 검지(손 끝 쪽)가 위면 가산
       if (!best || score > best.score) best = { score, qa };
     }
@@ -783,13 +793,15 @@ function pose(t) {
   // 그 점이 수직이 되게 손목을 최대 45° 더 꺾는다(2026-10-31 사용자: 엄지가 하늘로)
   for (const S of ['Left', 'Right']) {
     const B = HB.beats, k = beatIndex(t), side = MP[S].hand, kk = B[k + 1] && t > B[k + 1].t - .06 ? k + 1 : k;
-    if (B[kk][side] !== 'thumb' || !THUMB_PTS[S]) continue;
+    if (B[kk][side] !== 'thumb') continue;
+    const TP = THUMB_PTS[S] ?? rigPts(S, ['Thumb4']);
+    if (!TP) continue;
     const hb = bone[`${S}Hand`], q = wquat(hb), ax = new THREE.Vector3(0, 1, 0).applyQuaternion(q).normalize();
     let best = null;
     for (let deg = 0; deg < 360; deg += 15) {
       const qa = new THREE.Quaternion().setFromAxisAngle(ax, THREE.MathUtils.degToRad(deg)).multiply(q);
       let top = -1e9, tp = null;
-      for (const p of THUMB_PTS[S]) { const y = p.clone().applyQuaternion(qa).y; if (y > top) { top = y; tp = p; } }
+      for (const p of TP) { const y = p.clone().applyQuaternion(qa).y; if (y > top) { top = y; tp = p; } }
       if (!best || top > best.top) best = { top, qa, tp };
     }
     const tipW = best.tp.clone().applyQuaternion(best.qa).normalize(), tilt = tipW.angleTo(UPY);
