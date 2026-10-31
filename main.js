@@ -307,9 +307,39 @@ let SHOULDER_K = +(QS.get('shoulder') ?? 0);           // 팔 들 때 쇄골이 
 let HEAD_SCALE = +(QS.get('head') ?? (MODEL_KEY === 'dance2' ? .85 : 1));   // remake는 원화에서부터 비율을 맞춰 1   // 0.67·0.75·0.8·0.85·0.9·1.0 비교 후 0.85(2026-10-31, 사용자: 보기 좋게 맞춰 달라)
 let NECK_UP = +(QS.get('neck') ?? 0);   // 목은 모델에 넣었다(b003 neck_fix.py: 턱 깎기 + 목 원기둥). 머리 뼈를 올리면 턱 살이 늘어나 이중턱이 됐다
 for (const S of ['Left', 'Right']) for (const o of Object.values(swapHands[S])) o.traverse(x => { x.frustumCulled = false; });
-// 엄지척 메시의 엄지 방향(손 뼈 기준). 메시에서 자동으로 찾으니 손가락 마디를 엄지로 잡아, 렌더 비교로 엄지가 하늘을 향한
-// 손목 축 회전(2.6초 왼손 −90°, 오른손 180°)에서 거꾸로 구한 값(2026-10-31)
-const THUMB_DIR = { Left: new THREE.Vector3(-0.846, 0.532, 0.02).normalize(), Right: new THREE.Vector3(0.846, -0.53, 0.058).normalize() };
+// 윤곽선(2026-10-31 사용자: 손이 잘 안 보인다, 손 모양 보게): 메시마다 법선 방향으로 조금 부풀린 검은 뒷면 복사본(만화식 외곽선).
+// 손은 굵게, 몸은 얇게. 복사본은 원래 메시의 자식이라 손 모양을 바꿔 끼울 때 같이 켜지고 꺼진다. ?outline=1 또는 '윤곽선' 체크
+const outlines = [];
+function addOutline(src, width, color = 0x111111) {
+  const mat = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
+  mat.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', `vec3 transformed = vec3(position) + normalize(objectNormal) * ${width.toFixed(4)};`); };
+  const o = src.isSkinnedMesh ? new THREE.SkinnedMesh(src.geometry, mat) : new THREE.Mesh(src.geometry, mat);
+  if (src.isSkinnedMesh) o.bind(src.skeleton, src.bindMatrix);
+  if (src.morphTargetInfluences) { o.morphTargetInfluences = src.morphTargetInfluences; o.morphTargetDictionary = src.morphTargetDictionary; }
+  o.frustumCulled = false; o.visible = false; o.renderOrder = -1;
+  src.add(o); outlines.push(o);
+}
+{
+  const hb = new THREE.Box3().setFromObject(skinned), unit = (hb.max.y - hb.min.y) / 1.8 / skinned.getWorldScale(new THREE.Vector3()).y;   // 메시 좌표 1m
+  for (const S of ['Left', 'Right']) for (const o of Object.values(swapHands[S])) o.traverse(x => { if (x.isMesh && !outlines.includes(x)) addOutline(x, .009 * unit); });
+  addOutline(skinned, .004 * unit);
+}
+const outlineBox = $('outlineOn');
+outlineBox.checked = new URLSearchParams(location.search).get('outline') === '1';
+const setOutline = () => { for (const o of outlines) o.visible = outlineBox.checked; };
+outlineBox.onchange = setOutline; setOutline();
+// 엄지척 메시의 점들(손 뼈 기준, 무게중심 기준, 손목 쪽 25% 제외, 20개 중 1개) — 매 프레임 '가장 높이 튀어나온 점'이 위로 가게 손을 돌린다.
+// 엄지 끝을 메시·렌더에서 따로 찾으니 손목 단면·손가락 마디를 엄지로 잡아 틀렸다(2026-10-31) → 엄지척 주먹에서 가장 튀어나온 건 엄지
+const THUMB_PTS = {};
+for (const S of ['Left', 'Right']) {
+  const o = swapHands[S].thumb, mesh = o && (o.isSkinnedMesh ? o : o.children.find(c => c.isSkinnedMesh)); if (!mesh) continue;
+  const bi = mesh.skeleton.bones.findIndex(b => b.name.endsWith(`${S}Hand`)), inv = mesh.skeleton.boneInverses[bi];
+  const pos = mesh.geometry.attributes.position, pts = [], c = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i += 20) { const p = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.bindMatrix).applyMatrix4(inv); pts.push(p); c.add(p); }
+  c.multiplyScalar(1 / pts.length);
+  const ys = pts.map(p => p.y).sort((x, y) => x - y), yLo = ys[Math.floor(ys.length * .25)];
+  THUMB_PTS[S] = pts.filter(p => p.y >= yLo).map(p => p.sub(c));
+}
 const bone = {};
 for (const b of skinned.skeleton.bones) bone[b.name.replace(/^mixamorig:?/, '')] = b;
 const helper = new THREE.SkeletonHelper(model); helper.visible = false; scene.add(helper);
@@ -682,23 +712,31 @@ function pose(t) {
     }
   }
   applyFingers('Left', t); applyFingers('Right', t);
-  // 엄지척: 엄지가 하늘을 향하게 — 손목 축 둘레로 돌려 엄지 방향(메시에서 미리 구한 THUMB_DIR)을 위쪽에 가장 가깝게(2026-10-31 사용자)
+  // 삿대질(point): 손목을 아래팔과 일직선으로 펴 검지가 팔이 뻗은 쪽을 가리키게(검지 끝 = 손 뼈 +Y 방향, 2026-10-31 사용자)
   for (const S of ['Left', 'Right']) {
     const B = HB.beats, k = beatIndex(t), side = MP[S].hand, kk = B[k + 1] && t > B[k + 1].t - .06 ? k + 1 : k;
-    if (B[kk][side] !== 'thumb' || !THUMB_DIR[S]) continue;
+    if (B[kk][side] !== 'point') continue;
     const hb = bone[`${S}Hand`], q = wquat(hb);
-    const ax = new THREE.Vector3(0, 1, 0).applyQuaternion(q).normalize();             // 손 뼈 축(Mixamo 뼈는 +Y 방향)
-    const th = THUMB_DIR[S].clone().applyQuaternion(q);
-    const up = UPY.clone().addScaledVector(ax, -UPY.dot(ax)), tp = th.addScaledVector(ax, -th.dot(ax));
-    if (up.lengthSq() < .05 || tp.lengthSq() < 1e-6) continue;                          // 손이 거의 위·아래를 향하면 그대로
-    up.normalize(); tp.normalize();
-    const ang = Math.atan2(ax.dot(new THREE.Vector3().crossVectors(tp, up)), tp.dot(up));
-    const q1 = new THREE.Quaternion().setFromAxisAngle(ax, ang).multiply(q);
-    // 손목 축만 돌리면 엄지가 손 방향으로 기울어 45°쯤 비스듬하다 → 남은 기울기는 손목을 꺾어 엄지를 수직으로(최대 60°)
-    const th1 = THUMB_DIR[S].clone().applyQuaternion(q1).normalize(), tilt = th1.angleTo(UPY);
-    const fix = new THREE.Quaternion().setFromUnitVectors(th1, UPY);
-    if (tilt > 1e-3) fix.slerp(new THREE.Quaternion(), Math.max(0, 1 - THREE.MathUtils.degToRad(60) / tilt));
-    setWorldQuat(hb, fix.multiply(q1));
+    const fore = wpos(hb).sub(wpos(bone[`${S}ForeArm`])).normalize(), ax = new THREE.Vector3(0, 1, 0).applyQuaternion(q).normalize();
+    setWorldQuat(hb, new THREE.Quaternion().setFromUnitVectors(ax, fore).multiply(q));
+  }
+  // 엄지척: 엄지가 하늘을 향하게 — 손목 축 둘레 15°마다 돌려 가장 높이 튀어나온 점(엄지)이 가장 높은 각을 고르고,
+  // 그 점이 수직이 되게 손목을 최대 45° 더 꺾는다(2026-10-31 사용자: 엄지가 하늘로)
+  for (const S of ['Left', 'Right']) {
+    const B = HB.beats, k = beatIndex(t), side = MP[S].hand, kk = B[k + 1] && t > B[k + 1].t - .06 ? k + 1 : k;
+    if (B[kk][side] !== 'thumb' || !THUMB_PTS[S]) continue;
+    const hb = bone[`${S}Hand`], q = wquat(hb), ax = new THREE.Vector3(0, 1, 0).applyQuaternion(q).normalize();
+    let best = null;
+    for (let deg = 0; deg < 360; deg += 15) {
+      const qa = new THREE.Quaternion().setFromAxisAngle(ax, THREE.MathUtils.degToRad(deg)).multiply(q);
+      let top = -1e9, tp = null;
+      for (const p of THUMB_PTS[S]) { const y = p.clone().applyQuaternion(qa).y; if (y > top) { top = y; tp = p; } }
+      if (!best || top > best.top) best = { top, qa, tp };
+    }
+    const tipW = best.tp.clone().applyQuaternion(best.qa).normalize(), tilt = tipW.angleTo(UPY);
+    const fix = new THREE.Quaternion().setFromUnitVectors(tipW, UPY);
+    if (tilt > 1e-3) fix.slerp(new THREE.Quaternion(), Math.max(0, 1 - THREE.MathUtils.degToRad(45) / tilt));
+    setWorldQuat(hb, fix.multiply(best.qa));
   }
   applyMouth(t); applyLyric(t);
   model.updateMatrixWorld(true);
@@ -814,4 +852,4 @@ function frame() {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__v2 = { THUMB_DIR: () => THUMB_DIR, PK, P3: t => P3(t), PKP: t => applyPoseKeys(P3(t), t), armMeasure, bodyMeasure, setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
+window.__v2 = { PK, P3: t => P3(t), PKP: t => applyPoseKeys(P3(t), t), armMeasure, bodyMeasure, setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
