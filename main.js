@@ -459,7 +459,8 @@ function bendAt(t) { const [i, a] = frameAt(t); return [bendDeg[i] + (bendDeg[i 
 
 // ── 자세 교정(키 포즈): 인식이 놓친 팔·몸 방향을 시각마다 손으로 지정한다(2026-10-31 사용자: '내 인생의' 춤동작, 자세부터 고치자) ──
 // data/pose-keys.json = { keys: [{ t, part: 'LeftArm'|'RightArm'|'Body', e, a, b, y }] }
-//   팔: e 들기(0 아래로 늘어뜨림 · 90 수평 · 180 머리 위), a 앞뒤(0 옆 · +90 앞 · −90 뒤), b 팔꿈치 굽힘(0 곧게 · 150 접음, 앞쪽으로 굽힘)
+//   팔: e 들기(0 아래로 늘어뜨림 · 90 수평 · 180 머리 위), a 앞뒤(0 옆 · +90 앞 · −90 뒤), b 팔꿈치 굽힘(0 곧게 · 150 접음),
+//       d 굽히는 방향(0 앞 · 90 몸 안쪽 — 손을 머리 위에 얹기, 없으면 0)
 //   몸: y 방향(0 정면 · +90 화면 오른쪽을 봄 · ±180 뒤). 각도는 댄서 몸통 기준(팔), 화면 기준(몸)
 // 같은 부위 키가 1.2초 안에 이어지면 한 덩어리 — 덩어리 안은 키 사이를 선형으로 잇고, 앞뒤 0.2초에서 원래 동작과 섞는다.
 const PK = await fetch('data/pose-keys.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : { keys: [] }).catch(() => ({ keys: [] }));
@@ -476,7 +477,7 @@ function pkAt(part, t) {
     let v;
     if (t <= r[0].t) v = r[0]; else if (t >= r.at(-1).t) v = r.at(-1);
     else { const i = r.findIndex(k => k.t > t), k0 = r[i - 1], k1 = r[i], u = (t - k0.t) / (k1.t - k0.t);
-      v = Object.fromEntries(['e', 'a', 'b', 'y'].map(n => [n, k0[n] + ((n === 'y' ? ((k1[n] - k0[n] + 540) % 360) - 180 : k1[n] - k0[n])) * u])); }
+      v = Object.fromEntries(['e', 'a', 'b', 'y', 'd'].map(n => [n, (k0[n] ?? 0) + ((n === 'y' ? (((k1[n] ?? 0) - (k0[n] ?? 0) + 540) % 360) - 180 : (k1[n] ?? 0) - (k0[n] ?? 0))) * u])); }
     return { w, v };
   }
   return null;
@@ -495,7 +496,7 @@ function armMeasure(p, S) {                     // 지금 자세의 e·a·b(키 
   const e = Math.acos(THREE.MathUtils.clamp(-u.dot(f.up), -1, 1)) / D2R;
   const a = Math.atan2(u.dot(f.fwd), u.dot(side)) / D2R;
   const b = Math.acos(THREE.MathUtils.clamp(u.dot(fo), -1, 1)) / D2R;
-  return { e: Math.round(e), a: Math.round(a), b: Math.round(b) };
+  return { e: Math.round(e), a: Math.round(a), b: Math.round(b), d: 0 };
 }
 const bodyMeasure = p => { const f = torsoFrame(p); return { y: Math.round(Math.atan2(f.fwd.x, f.fwd.z) / D2R) }; };
 function applyPoseKeys(p, t) {
@@ -509,10 +510,11 @@ function applyPoseKeys(p, t) {
   for (const S of ['Left', 'Right']) {
     const k = pkAt(S + 'Arm', t); if (!k) continue;
     const m = MP[S], f = torsoFrame(p), side = S === 'Left' ? f.across : f.across.clone().negate();
-    const { e, a, b } = k.v;
+    const { e, a, b } = k.v, dd = (k.v.d ?? 0) * D2R;
     const upper = f.up.clone().multiplyScalar(-Math.cos(e * D2R))
       .add(side.clone().multiplyScalar(Math.sin(e * D2R) * Math.cos(a * D2R))).add(f.fwd.clone().multiplyScalar(Math.sin(e * D2R) * Math.sin(a * D2R))).normalize();
-    let perp = f.fwd.clone().addScaledVector(upper, -f.fwd.dot(upper));
+    const bendTo = f.fwd.clone().multiplyScalar(Math.cos(dd)).addScaledVector(side, -Math.sin(dd));   // 굽히는 방향: 0 앞 · 90 몸 안쪽(손을 머리에 얹기)
+    let perp = bendTo.addScaledVector(upper, -bendTo.dot(upper));
     if (perp.lengthSq() < 1e-4) perp = f.up.clone().addScaledVector(upper, -f.up.dot(upper));
     perp.normalize();
     const fore = upper.clone().multiplyScalar(Math.cos(b * D2R)).addScaledVector(perp, Math.sin(b * D2R));
@@ -535,7 +537,7 @@ function peShow() {
   const part = $('peP').value, body = part === 'Body';
   peEl.querySelector('.arm').hidden = body; peEl.querySelector('.body').hidden = !body;
   const k = peKey(), raw = P3(peT()), v = k ?? (body ? bodyMeasure(raw) : armMeasure(raw, part === 'LeftArm' ? 'Left' : 'Right'));
-  for (const n of ['e', 'a', 'b', 'y']) { const el = $('pe' + n.toUpperCase()); if (el && v[n] !== undefined) { el.value = v[n]; $('pe' + n.toUpperCase() + 'v').textContent = Math.round(v[n]) + '°'; } }
+  for (const n of ['e', 'a', 'b', 'y', 'd']) { const el = $('pe' + n.toUpperCase()); if (el && v[n] !== undefined) { el.value = v[n]; $('pe' + n.toUpperCase() + 'v').textContent = Math.round(v[n]) + '°'; } }
   const bi = typeof beatIndex === 'function' ? beatIndex(peT()) + 1 : '';
   const n = PK.keys.filter(x => x.part === part).length;
   $('peWhere').textContent = `${peT().toFixed(2)}초 · ${bi}박 · ${k ? '키 있음' : '원본'} · 이 부위 키 ${n}개`;
@@ -544,10 +546,10 @@ function peShow() {
 function peSet() {                                   // 밀대 → 지금 시각의 키 만들기/고치기
   const part = $('peP').value; let k = peKey();
   if (!k) { k = { t: peT(), part }; PK.keys.push(k); }
-  if (part === 'Body') k.y = +$('peY').value; else { k.e = +$('peE').value; k.a = +$('peA').value; k.b = +$('peB').value; }
+  if (part === 'Body') k.y = +$('peY').value; else { k.e = +$('peE').value; k.a = +$('peA').value; k.b = +$('peB').value; k.d = +$('peD').value; }
   peDirty = true; peShow();
 }
-for (const id of ['peE', 'peA', 'peB', 'peY']) $(id).oninput = peSet;
+for (const id of ['peE', 'peA', 'peB', 'peY', 'peD']) $(id).oninput = peSet;
 $('peP').onchange = peShow;
 poseBox.onchange = () => { if (poseBox.checked) setPlaying(false); peShow(); };
 $('peRead').onclick = () => { const k = peKey(); if (k) PK.keys.splice(PK.keys.indexOf(k), 1); peDirty = true; peShow(); };   // 키를 빼고 원본 자세로
@@ -777,4 +779,4 @@ function frame() {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__v2 = { PK, P3: t => P3(t), armMeasure, bodyMeasure, setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
+window.__v2 = { PK, P3: t => P3(t), PKP: t => applyPoseKeys(P3(t), t), armMeasure, bodyMeasure, setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
