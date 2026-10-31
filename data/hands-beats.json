@@ -1,766 +1,1071 @@
 {
 "period": 0.39474,
 "edited": false,
+"rules": true,
 "beats": [
 {
 "t": 0.1225,
-"L": "palm",
-"R": "palm"
+"L": "open",
+"whyL": "팔 들기",
+"R": "open",
+"whyR": "팔 들기"
 },
 {
 "t": 0.5172,
-"L": "palm",
-"R": "palm"
+"L": "open",
+"whyL": "팔 들기",
+"R": "open",
+"whyR": "팔 들기"
 },
 {
 "t": 0.912,
-"L": "palm",
-"R": "palm"
+"L": "open",
+"whyL": "팔 들기",
+"R": "open",
+"whyR": "팔 들기"
 },
 {
 "t": 1.3067,
-"L": "palm",
-"R": "palm"
+"L": "open",
+"whyL": "팔 들기",
+"R": "open",
+"whyR": "팔 들기"
 },
 {
 "t": 1.7015,
-"L": "palm",
-"R": "palm"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 2.0962,
-"L": "palm",
-"R": "palm"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 2.4909,
-"L": "open",
-"R": "open"
+"L": "thumb",
+"whyL": "찐찐찐(엄지척)",
+"R": "thumb",
+"whyR": "찐찐찐(엄지척)"
 },
 {
 "t": 2.8857,
-"L": "open",
-"R": "open"
+"L": "thumb",
+"whyL": "찐찐찐(엄지척)",
+"R": "thumb",
+"whyR": "찐찐찐(엄지척)"
 },
 {
 "t": 3.2804,
-"L": "open",
-"R": "open"
+"L": "thumb",
+"whyL": "찐찐찐(엄지척)",
+"R": "thumb",
+"whyR": "찐찐찐(엄지척)"
 },
 {
 "t": 3.6752,
-"L": "open",
-"R": "open"
+"L": "thumb",
+"whyL": "찐찐찐(엄지척)",
+"R": "thumb",
+"whyR": "찐찐찐(엄지척)"
 },
 {
 "t": 4.0699,
-"L": "open",
-"R": "fist"
+"L": "thumb",
+"whyL": "찐찐찐(엄지척)",
+"R": "thumb",
+"whyR": "찐찐찐(엄지척)"
 },
 {
 "t": 4.4646,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "open",
+"whyR": "털기(속도 상위 20%, 방향 바뀜 2번)"
 },
 {
 "t": 4.8594,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 5.2541,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 5.6489,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹) (앞뒤 박에 맞춤)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 6.0436,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 6.4383,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 6.8331,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 7.2278,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 7.6226,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 8.0173,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 8.412,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹) (앞뒤 박에 맞춤)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 8.8068,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹) (앞뒤 박에 맞춤)"
 },
 {
 "t": 9.2015,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 9.5963,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 9.991,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 10.3857,
-"L": "palm",
-"R": "palm"
+"L": "open",
+"whyL": "팔 들기",
+"R": "open",
+"whyR": "팔 들기"
 },
 {
 "t": 10.7805,
-"L": "palm",
-"R": "palm"
+"L": "open",
+"whyL": "팔 들기",
+"R": "open",
+"whyR": "팔 들기"
 },
 {
 "t": 11.1752,
-"L": "palm",
-"R": "palm"
+"L": "open",
+"whyL": "팔 들기",
+"R": "open",
+"whyR": "팔 들기"
 },
 {
 "t": 11.57,
-"L": "palm",
-"R": "palm"
+"L": "fist",
+"whyL": "인식: 주먹 + 팔 뻗음",
+"R": "open",
+"whyR": "털기(속도 상위 20%, 방향 바뀜 2번)"
 },
 {
 "t": 11.9647,
-"L": "palm",
-"R": "palm"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 12.3594,
-"L": "palm",
-"R": "palm"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 12.7542,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 13.1489,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹) (앞뒤 박에 맞춤)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 13.5437,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 13.9384,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 14.3331,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 14.7279,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 15.1226,
-"L": "open",
-"R": "open"
+"L": "thumb",
+"whyL": "찐찐찐(엄지척)",
+"R": "thumb",
+"whyR": "찐찐찐(엄지척)"
 },
 {
 "t": 15.5174,
-"L": "open",
-"R": "open"
+"L": "thumb",
+"whyL": "찐찐찐(엄지척)",
+"R": "thumb",
+"whyR": "찐찐찐(엄지척)"
 },
 {
 "t": 15.9121,
-"L": "fist",
-"R": "open"
+"L": "thumb",
+"whyL": "찐찐찐(엄지척)",
+"R": "thumb",
+"whyR": "찐찐찐(엄지척)"
 },
 {
 "t": 16.3068,
-"L": "fist",
-"R": "open"
+"L": "thumb",
+"whyL": "찐찐찐(엄지척)",
+"R": "thumb",
+"whyR": "찐찐찐(엄지척)"
 },
 {
 "t": 16.7016,
-"L": "fist",
-"R": "open"
+"L": "thumb",
+"whyL": "찐찐찐(엄지척)",
+"R": "thumb",
+"whyR": "찐찐찐(엄지척)"
 },
 {
 "t": 17.0963,
-"L": "fist",
-"R": "open"
+"L": "open",
+"whyL": "털기(속도 상위 20%, 방향 바뀜 2번)",
+"R": "open",
+"whyR": "털기(속도 상위 20%, 방향 바뀜 2번)"
 },
 {
 "t": 17.4911,
-"L": "fist",
-"R": "open"
+"L": "open",
+"whyL": "털기(속도 상위 20%, 방향 바뀜 2번) (앞뒤 박에 맞춤)",
+"R": "open",
+"whyR": "털기(속도 상위 20%, 방향 바뀜 2번) (앞뒤 박에 맞춤)"
 },
 {
 "t": 17.8858,
-"L": "fist",
-"R": "open"
+"L": "open",
+"whyL": "털기(속도 상위 20%, 방향 바뀜 2번)",
+"R": "open",
+"whyR": "털기(속도 상위 20%, 방향 바뀜 2번)"
 },
 {
 "t": 18.2805,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "open",
+"whyR": "털기(속도 상위 20%, 방향 바뀜 2번) (앞뒤 박에 맞춤)"
 },
 {
 "t": 18.6753,
 "L": "fist",
-"R": "open"
+"whyL": "인식: 주먹 + 빠르게 휘두름",
+"R": "open",
+"whyR": "털기(속도 상위 20%, 방향 바뀜 2번)"
 },
 {
 "t": 19.07,
 "L": "fist",
-"R": "open"
+"whyL": "인식: 주먹 + 팔 뻗음",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 19.4648,
 "L": "fist",
-"R": "open"
+"whyL": "인식: 주먹 + 팔 뻗음 (앞뒤 박에 맞춤)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 19.8595,
 "L": "fist",
-"R": "open"
+"whyL": "인식: 주먹 + 팔 뻗음",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 20.2542,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 20.649,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 21.0437,
-"L": "fist",
-"R": "open"
+"L": "open",
+"whyL": "팔 들기",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 21.4385,
-"L": "fist",
-"R": "open"
+"L": "open",
+"whyL": "팔 들기",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 21.8332,
-"L": "fist",
-"R": "open"
+"L": "open",
+"whyL": "팔 들기",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 22.2279,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 22.6227,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 23.0174,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 23.4122,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 23.8069,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 24.2016,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 24.5964,
-"L": "open",
-"R": "gun"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 24.9911,
-"L": "open",
-"R": "gun"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 25.3859,
-"L": "open",
-"R": "gun"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "gun",
+"whyR": "인식: 총(엄지·검지)"
 },
 {
 "t": 25.7806,
-"L": "open",
-"R": "gun"
+"L": "relaxed",
+"whyL": "평소(반주먹) (앞뒤 박에 맞춤)",
+"R": "open",
+"whyR": "털기(속도 상위 20%, 방향 바뀜 2번)"
 },
 {
 "t": 26.1753,
-"L": "fist",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 26.5701,
-"L": "fist",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 26.9648,
-"L": "fist",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 27.3596,
 "L": "fist",
-"R": "fist"
+"whyL": "인식: 주먹 + 팔 뻗음",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 27.7543,
-"L": "fist",
-"R": "open"
+"L": "open",
+"whyL": "털기(속도 상위 20%, 방향 바뀜 2번)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 28.149,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 28.5438,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 28.9385,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹) (앞뒤 박에 맞춤)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 29.3333,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹) (앞뒤 박에 맞춤)"
 },
 {
 "t": 29.728,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 30.1227,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 30.5175,
-"L": "open",
-"R": "open"
+"L": "fist",
+"whyL": "인식: 주먹 + 빠르게 휘두름",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 30.9122,
 "L": "open",
-"R": "open"
+"whyL": "털기(속도 상위 20%, 방향 바뀜 2번)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 31.307,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 31.7017,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 32.0964,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 32.4912,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 32.8859,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 33.2807,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 33.6754,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 34.0701,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 34.4649,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 34.8596,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 35.2544,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 35.6491,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 36.0438,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 36.4386,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹) (앞뒤 박에 맞춤)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 36.8333,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 37.2281,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 37.6228,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹) (앞뒤 박에 맞춤)"
 },
 {
 "t": 38.0175,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 38.4123,
 "L": "fist",
-"R": "open"
+"whyL": "인식: 주먹 + 팔 뻗음",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 38.807,
-"L": "fist",
-"R": "open"
+"L": "open",
+"whyL": "털기(속도 상위 20%, 방향 바뀜 2번)",
+"R": "relaxed",
+"whyR": "평소(반주먹) (앞뒤 박에 맞춤)"
 },
 {
 "t": 39.2018,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 39.5965,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 39.9912,
-"L": "fist",
-"R": "open"
+"L": "gun",
+"whyL": "인식: 총(엄지·검지)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 40.386,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 40.7807,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹) (앞뒤 박에 맞춤)"
 },
 {
 "t": 41.1755,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 41.5702,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 41.9649,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 42.3597,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 42.7544,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 43.1492,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 43.5439,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹) (앞뒤 박에 맞춤)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 43.9386,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 44.3334,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 44.7281,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 45.1229,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 45.5176,
-"L": "open",
-"R": "open"
+"L": "gun",
+"whyL": "인식: 총(엄지·검지)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 45.9123,
-"L": "gun",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 46.3071,
-"L": "gun",
-"R": "open"
+"L": "open",
+"whyL": "팔 들기",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 46.7018,
-"L": "gun",
-"R": "open"
+"L": "open",
+"whyL": "팔 들기",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 47.0966,
-"L": "gun",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 47.4913,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 47.886,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 48.2808,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹) (앞뒤 박에 맞춤)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 48.6755,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 49.0703,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "fist",
+"whyR": "인식: 주먹 + 빠르게 휘두름"
 },
 {
 "t": 49.465,
 "L": "open",
-"R": "fist"
+"whyL": "팔 들기",
+"R": "fist",
+"whyR": "인식: 주먹 + 팔 뻗음"
 },
 {
 "t": 49.8597,
-"L": "open",
-"R": "fist"
+"L": "fist",
+"whyL": "인식: 주먹 + 팔 뻗음",
+"R": "open",
+"whyR": "팔 들기"
 },
 {
 "t": 50.2545,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 50.6492,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 51.044,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "gun",
+"whyR": "인식: 총(엄지·검지)"
 },
 {
 "t": 51.4387,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 51.8334,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 52.2282,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 52.6229,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 53.0177,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 53.4124,
-"L": "open",
-"R": "fist"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 53.8071,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 54.2019,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 54.5966,
-"L": "open",
-"R": "open"
+"L": "gun",
+"whyL": "인식: 총(엄지·검지)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 54.9914,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 55.3861,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 55.7808,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 56.1756,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 56.5703,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 56.9651,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 57.3598,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 57.7545,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 58.1493,
-"L": "open",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 58.544,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 58.9388,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 59.3335,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 },
 {
 "t": 59.7282,
-"L": "fist",
-"R": "open"
+"L": "relaxed",
+"whyL": "평소(반주먹)",
+"R": "relaxed",
+"whyR": "평소(반주먹)"
 }
 ]
 }
