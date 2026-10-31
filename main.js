@@ -5,6 +5,27 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const $ = id => document.getElementById(id);
 const M = await (await fetch('data/motion.json')).json();
+// 팔 펴기 구간(초, 손): 옆 댄서 손이 섞여 손목·손 표식이 그쪽으로 끌려가 아래팔이 짧아지며 꺾였다(ㄷ자, 1.55~1.85초 팔꿈치 110°·
+// 아래팔 길이 84→37화소, 원작은 팔을 옆으로 쭉 폈다). → 손목을 위팔 연장선 위에(길이는 구간 앞뒤 프레임 값을 이어), 손 표식은 손목에
+// 붙여 아래팔과 일직선으로 돌린다. 2D(lm)·3D(world) 모두. 2026-10-31 사용자: 5박 졸라맨 왼손(화면 왼쪽 = R) 디귿자, 펴줘
+const ARM_STRAIGHT = [[1.53, 1.85, 'R']];
+for (const [a, b, side] of ARM_STRAIGHT) {
+  const [sh, el, wr, hand] = side === 'R' ? [12, 14, 16, [18, 20, 22]] : [11, 13, 15, [17, 19, 21]];
+  const f0 = Math.ceil(a * 30) - 1, f1 = Math.floor(b * 30) + 1;
+  for (const [arr, D] of [[M.lm, 2], [M.world, 3]]) {
+    const P = (f, j) => new THREE.Vector3(arr[f][D * j], arr[f][D * j + 1], D === 3 ? arr[f][D * j + 2] : 0);
+    const len0 = P(f0, wr).distanceTo(P(f0, el)), len1 = P(f1, wr).distanceTo(P(f1, el));
+    for (let f = f0 + 1; f < f1; f++) {
+      const u = (f - f0) / (f1 - f0), E = P(f, el), Wo = P(f, wr);
+      const dir = E.clone().sub(P(f, sh)).normalize(), Wn = E.clone().addScaledVector(dir, len0 + (len1 - len0) * u);
+      const hm = P(f, hand[0]).add(P(f, hand[1])).multiplyScalar(.5).sub(Wo).normalize();
+      const q = new THREE.Quaternion().setFromUnitVectors(hm, dir);
+      const put = (j, v) => { arr[f][D * j] = v.x; arr[f][D * j + 1] = v.y; if (D === 3) arr[f][D * j + 2] = v.z; };
+      for (const j of hand) put(j, P(f, j).sub(Wo).applyQuaternion(q).add(Wn));
+      put(wr, Wn);
+    }
+  }
+}
 const HB = await (await fetch('data/hands-beats.json', { cache: 'no-store' })).json();
 // 모델: 기본 dance2(다리 늘림 + 손 모양별 손 바꿔 끼우기) · ?model=dance1(팔만 늘림, 만든 손) · ?model=v1(처음)
 // 모델: 기본 remake(2026-10-31 지금 비율로 원화부터 새로 만든 봉식이 + 손 모양별 손 + 노래 입 모양)
@@ -223,8 +244,11 @@ function applyLyric(t) {
 // 가장 크게 벌린 입(open4·round2)만 10%씩 두 번 줄임(같은 날 사용자: 과하게 벌린다). '이'(teeth)는 춤출 때 멀리서도 벌린 게 보이게 턱을 조금 내림
 const JAW_OF = Object.fromEntries(Object.entries({ rest: 0, m: 0, teeth: .45, u: .3, open1: .4, round1: .4, open2: .75, o: 1, open3: 1.1, round2: 1.35 * .81, open4: 1.5 * .81 }).map(([k, v]) => [k, v * .8]));
 const jawIdx = skinned.morphTargetDictionary?.JawOpen;
+// 음절 번호별 턱 배율(음절 SRT 번호, 그 음절 시간 동안 턱만 더 내림). 2026-10-31 사용자: #3~8 '찐' 발음 때 입을 10%만 더 벌려
+const JAW_GAIN = [[3, 8, 1.1]];
+const jawGainAt = t => { for (const [a, b, g] of JAW_GAIN) if (SYL.some(s => s.n >= a && s.n <= b && t >= s.a && t < s.b)) return g; return 1; };
 const buildJaw = () => VIS && jawIdx !== undefined ? VIS.frames.map((_, k, f) => {
-  const g = i => JAW_OF[f[Math.min(f.length - 1, Math.max(0, i))]] ?? 0;
+  const g = i => (JAW_OF[f[Math.min(f.length - 1, Math.max(0, i))]] ?? 0) * jawGainAt(i / VIS.fps);
   return .25 * g(k - 1) + .5 * g(k) + .25 * g(k + 1);
 }) : null;
 let JAW = buildJaw();
@@ -289,7 +313,7 @@ $('seSave').onclick = async () => {
   const r = await fetch('api/syllables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ srt }) }).catch(() => null);
   if (!r || !r.ok) { $('seMsg').textContent = '저장 실패(로컬 서버에서만 됨)'; return; }
   Object.assign(VIS, await fetch('data/visemes.json', { cache: 'no-store' }).then(x => x.json()));
-  JAW = buildJaw(); SYL = parseSyl(await fetch('data/syllables.srt', { cache: 'no-store' }).then(x => x.text()));
+  SYL = parseSyl(await fetch('data/syllables.srt', { cache: 'no-store' }).then(x => x.text())); JAW = buildJaw();
   shownMouth = null; shownSyl = ''; seDirty = false; $('seMsg').textContent = '적용됨'; showEdit();
 };
 function applyMouth(t) {
@@ -330,6 +354,14 @@ const setOutline = () => { for (const o of outlines) o.visible = outlineBox.chec
 outlineBox.onchange = setOutline; setOutline();
 // 엄지척 메시의 점들(손 뼈 기준, 무게중심 기준, 손목 쪽 25% 제외, 20개 중 1개) — 매 프레임 '가장 높이 튀어나온 점'이 위로 가게 손을 돌린다.
 // 엄지 끝을 메시·렌더에서 따로 찾으니 손목 단면·손가락 마디를 엄지로 잡아 틀렸다(2026-10-31) → 엄지척 주먹에서 가장 튀어나온 건 엄지
+const HEART_PTS = {};                                    // 손가락 하트 반쪽 메시 점(손 뼈 기준) — C자 면을 세로로 세우는 데 쓴다
+for (const S of ['Left', 'Right']) {
+  const o = swapHands[S].heart, mesh = o && (o.isSkinnedMesh ? o : o.children.find(c => c.isSkinnedMesh)); if (!mesh) continue;
+  const bi = mesh.skeleton.bones.findIndex(b => b.name.endsWith(`${S}Hand`)), inv = mesh.skeleton.boneInverses[bi];
+  const pos = mesh.geometry.attributes.position, pts = [];
+  for (let i = 0; i < pos.count; i += 20) pts.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.bindMatrix).applyMatrix4(inv));
+  HEART_PTS[S] = pts;
+}
 const THUMB_PTS = {};
 for (const S of ['Left', 'Right']) {
   const o = swapHands[S].thumb, mesh = o && (o.isSkinnedMesh ? o : o.children.find(c => c.isSkinnedMesh)); if (!mesh) continue;
@@ -339,6 +371,45 @@ for (const S of ['Left', 'Right']) {
   c.multiplyScalar(1 / pts.length);
   const ys = pts.map(p => p.y).sort((x, y) => x - y), yLo = ys[Math.floor(ys.length * .25)];
   THUMB_PTS[S] = pts.filter(p => p.y >= yLo).map(p => p.sub(c));
+}
+// 손목 단면(편 손 메시의 손 뼈 기준 가장 낮은 2cm 중심) — 엄지척·하트·삿대질로 손을 돌릴 때 이 점을 축으로 돌려 손이 소매에서 빠지지 않게(2026-10-31)
+const STUMP = {};
+for (const S of ['Left', 'Right']) {
+  const o = swapHands[S].open, mesh = o && (o.isSkinnedMesh ? o : o.children.find(c => c.isSkinnedMesh)); if (!mesh) continue;
+  const bi = mesh.skeleton.bones.findIndex(b => b.name.endsWith(`${S}Hand`)), inv = mesh.skeleton.boneInverses[bi];
+  const pos = mesh.geometry.attributes.position, pts = [];
+  for (let i = 0; i < pos.count; i += 3) pts.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.bindMatrix).applyMatrix4(inv));
+  const lo = Math.min(...pts.map(p => p.y)), band = pts.filter(p => p.y < lo + .02);
+  STUMP[S] = band.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / band.length);
+}
+// 소매 입구 = 몸 텍스처에서 흰 셔츠 소맷부리 색인 정점(손 뼈 14cm 안, 손 뼈 가중치 없는 것)의 고리.
+// 손 뼈가 손바닥 가운데에 있고 소매 끝은 리그 축에서 5~7cm 비껴 있어, 손 모양을 바꾸거나 손을 꺾으면 손목이 소매 밖으로 빠져 보였다
+// (2026-10-31 사용자 6·33·39·54박) → 매 프레임 이 고리의 실제(스키닝 후) 중심에 손목 단면(STUMP)을 붙인다(glueWrist).
+// 소매 안쪽 안감 구멍(가장자리 고리)이나 아래팔 축으로 썬 단면 중심은 실제 보이는 소맷부리와 어긋나 쓰지 않았다.
+const CUFF_IDX = {};
+let cuffReady = false;
+function buildCuff() {                              // 텍스처 그림이 다 읽힌 뒤 한 번(공개판은 처음 프레임에 아직 안 읽혀 있었다)
+  const sk = skinned.skeleton, g = skinned.geometry, pos = g.attributes.position, uv = g.attributes.uv, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+  const map = skinned.material.map, img = map && map.image;
+  if (!img || !(img.naturalWidth || img.width) || img.complete === false) return;
+  cuffReady = true;
+  if (uv) {
+    const cc = document.createElement('canvas'); cc.width = img.width; cc.height = img.height;
+    const cx = cc.getContext('2d'); cx.drawImage(img, 0, 0); const px = cx.getImageData(0, 0, img.width, img.height).data;
+    for (const S of ['Left', 'Right']) {
+      const hi = sk.bones.findIndex(b => b.name.endsWith(`${S}Hand`)); if (hi < 0) continue;
+      const inv = sk.boneInverses[hi], list = [];
+      for (let i = 0; i < pos.count; i++) {
+        if (new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(skinned.bindMatrix).applyMatrix4(inv).length() > .14) continue;
+        let wh = 0; for (let k = 0; k < 4; k++) if (si.getComponent(i, k) === hi) wh += sw.getComponent(i, k);
+        if (wh > .05) continue;
+        let u = uv.getX(i) % 1, v = uv.getY(i) % 1; if (u < 0) u += 1; if (v < 0) v += 1;
+        const X = Math.min(img.width - 1, Math.floor(u * img.width)), Y = Math.min(img.height - 1, Math.floor((map.flipY ? 1 - v : v) * img.height)), o = (Y * img.width + X) * 4;
+        if (px[o] > 215 && px[o + 1] > 215 && px[o + 2] > 200) list.push(i);
+      }
+      if (list.length >= 20) CUFF_IDX[S] = list.filter((_, k) => k % 2 === 0);
+    }
+  }
 }
 const bone = {};
 for (const b of skinned.skeleton.bones) bone[b.name.replace(/^mixamorig:?/, '')] = b;
@@ -382,6 +453,16 @@ function setWorldQuat(b, qw) {
   b.quaternion.copy(pq.multiply(qw));
   b.updateMatrixWorld(true);
 }
+function glueWrist(S) {                             // 손목 단면을 소맷부리 고리 중심(1cm 안쪽)에 붙인다(손 모양·손목 꺾임과 상관없이)
+  if (!cuffReady) buildCuff();
+  const hb = bone[`${S}Hand`], list = CUFF_IDX[S];
+  if (!STUMP[S] || !list) return;
+  const c = new THREE.Vector3(), v = new THREE.Vector3(), pos = skinned.geometry.attributes.position;
+  for (const i of list) c.add(skinned.applyBoneTransform(i, v.fromBufferAttribute(pos, i)).applyMatrix4(skinned.matrixWorld));
+  c.multiplyScalar(1 / list.length);
+  c.addScaledVector(wpos(bone[`${S}ForeArm`]).sub(c).normalize(), .01);
+  hb.position.copy(hb.parent.worldToLocal(wpos(hb).add(c.sub(hb.localToWorld(STUMP[S].clone()))))); hb.updateMatrixWorld(true);
+}
 function aim(b, child, dir) {
   const cur = wpos(child).sub(wpos(b)).normalize();
   setWorldQuat(b, new THREE.Quaternion().setFromUnitVectors(cur, dir.clone().normalize()).multiply(wquat(b)));
@@ -405,9 +486,10 @@ const SHAPES = {
   gun: { Thumb: [0, 0, 0], Index: F_FLAT, Middle: F_CURL, Ring: F_CURL, Pinky: F_CURL },
   point: { Thumb: [0, 30, 40], Index: F_FLAT, Middle: F_CURL, Ring: F_CURL, Pinky: F_CURL },
   fist: { Thumb: [0, 30, 40], Index: F_CURL, Middle: F_CURL, Ring: F_CURL, Pinky: F_CURL },
+  heart: { Thumb: [0, 20, 20], Index: [10, 40, 30], Middle: F_CURL, Ring: F_CURL, Pinky: F_CURL },   // 손가락 하트 반쪽
   relaxed: { Thumb: [0, 15, 20], Index: [40, 50, 35], Middle: [45, 55, 40], Ring: [50, 60, 40], Pinky: [55, 60, 40] },   // 반주먹(평소 손)
 };
-const SHAPE_NAMES = { relaxed: '반주먹(평소)', open: '편 손', palm: '손바닥', thumb: '엄지척', gun: '총', point: '가리키기', fist: '주먹' };
+const SHAPE_NAMES = { relaxed: '반주먹(평소)', heart: '하트 반쪽', open: '편 손', palm: '손바닥', thumb: '엄지척', gun: '총', point: '가리키기', fist: '주먹' };
 const FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
 const beatIndex = t => { let i = 0; while (i + 1 < HB.beats.length && HB.beats[i + 1].t <= t) i++; return i; };
 const xAxis = new THREE.Vector3(1, 0, 0);
@@ -718,7 +800,23 @@ function pose(t) {
     if (B[kk][side] !== 'point') continue;
     const hb = bone[`${S}Hand`], q = wquat(hb);
     const fore = wpos(hb).sub(wpos(bone[`${S}ForeArm`])).normalize(), ax = new THREE.Vector3(0, 1, 0).applyQuaternion(q).normalize();
-    setWorldQuat(hb, new THREE.Quaternion().setFromUnitVectors(ax, fore).multiply(q));
+    setWorldQuat(bone[`${S}Hand`], new THREE.Quaternion().setFromUnitVectors(ax, fore).multiply(q));
+  }
+  // 손가락 하트(heart): 손목 축 둘레 15°마다 돌려 메시가 위아래로 가장 길게 서는(C자 면이 정면에 세로로 서는) 각을 고르고,
+  // 둘 중 손 끝 쪽(검지)이 위에 오는 쪽을 쓴다(2026-10-31 사용자: '사랑할 거야' 엄지·검지 맞대 손가락 하트)
+  for (const S of ['Left', 'Right']) {
+    const B = HB.beats, k = beatIndex(t), side = MP[S].hand, kk = B[k + 1] && t > B[k + 1].t - .06 ? k + 1 : k;
+    if (B[kk][side] !== 'heart' || !HEART_PTS[S]) continue;
+    const hb = bone[`${S}Hand`], q = wquat(hb), ax = new THREE.Vector3(0, 1, 0).applyQuaternion(q).normalize();
+    let best = null;
+    for (let deg = 0; deg < 360; deg += 15) {
+      const qa = new THREE.Quaternion().setFromAxisAngle(ax, THREE.MathUtils.degToRad(deg)).multiply(q);
+      let lo = 1e9, hi = -1e9, hiAx = 0, loAx = 0;
+      for (const p of HEART_PTS[S]) { const w = p.clone().applyQuaternion(qa); if (w.y > hi) { hi = w.y; hiAx = p.y; } if (w.y < lo) { lo = w.y; loAx = p.y; } }
+      const score = (hi - lo) + (hiAx > loAx ? .02 : 0);              // 키 + 검지(손 끝 쪽)가 위면 가산
+      if (!best || score > best.score) best = { score, qa };
+    }
+    setWorldQuat(bone[`${S}Hand`], best.qa);
   }
   // 엄지척: 엄지가 하늘을 향하게 — 손목 축 둘레 15°마다 돌려 가장 높이 튀어나온 점(엄지)이 가장 높은 각을 고르고,
   // 그 점이 수직이 되게 손목을 최대 45° 더 꺾는다(2026-10-31 사용자: 엄지가 하늘로)
@@ -736,8 +834,9 @@ function pose(t) {
     const tipW = best.tp.clone().applyQuaternion(best.qa).normalize(), tilt = tipW.angleTo(UPY);
     const fix = new THREE.Quaternion().setFromUnitVectors(tipW, UPY);
     if (tilt > 1e-3) fix.slerp(new THREE.Quaternion(), Math.max(0, 1 - THREE.MathUtils.degToRad(45) / tilt));
-    setWorldQuat(hb, fix.multiply(best.qa));
+    setWorldQuat(bone[`${S}Hand`], fix.multiply(best.qa));
   }
+  model.updateMatrixWorld(true); glueWrist('Left'); glueWrist('Right');
   applyMouth(t); applyLyric(t);
   model.updateMatrixWorld(true);
   // 이동: 좌우는 원본 엉덩이 화면 이동, 높이는 가장 낮은 발을 바닥에 붙인다
@@ -810,13 +909,14 @@ function syncHandUI(t) {
   $('beatNo').textContent = `${i + 1}박 / ${HB.beats.length}`;
   selL.value = HB.beats[i].L; selR.value = HB.beats[i].R;
 }
-async function saveHands() {
-  HB.edited = true;
-  const r = await fetch('api/hands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(HB) });
+// 손 표 저장: 고친 박 하나만 보낸다(표 전체를 보내면, 오래 열어 둔 탭의 예전 표가 그 사이 바뀐 규칙·손질을 덮어썼다 — 2026-10-31).
+// 서버가 지금 파일에 합치고 data/hands-user.json(사용자 손질 목록, hands_plan.py가 가장 먼저 적용)에 남긴다.
+async function saveHands(change) {
+  const r = await fetch('api/hands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ change }) });
   $('saved').textContent = r.ok ? '저장됨' : '저장 실패';
   setTimeout(() => { $('saved').textContent = ''; }, 1500);
 }
-const setShape = (side, v) => { HB.beats[beatIndex(audio.currentTime)][side] = v; saveHands(); };
+const setShape = (side, v) => { const i = beatIndex(audio.currentTime); HB.beats[i][side] = v; saveHands({ i, t: HB.beats[i].t, side, v }); };
 if (selL) {
 selL.onchange = () => setShape('L', selL.value);
 selR.onchange = () => setShape('R', selR.value);
@@ -852,4 +952,4 @@ function frame() {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__v2 = { PK, P3: t => P3(t), PKP: t => applyPoseKeys(P3(t), t), armMeasure, bodyMeasure, setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
+window.__v2 = { STUMP, CUFF_IDX, PK, P3: t => P3(t), PKP: t => applyPoseKeys(P3(t), t), armMeasure, bodyMeasure, setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
