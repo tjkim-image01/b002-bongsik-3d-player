@@ -44,7 +44,7 @@ const frameAt = t => { const f = THREE.MathUtils.clamp(t * FPS, 0, N - 1.001); c
 // 팔 2D 보정 구간(초): 옆·뒤로 돌 때 MediaPipe 3D 깊이가 흔들려 팔이 화면 쪽으로 접힌다(예: 46.8초 팔을 머리 위로 뻗는데 손이 얼굴 앞).
 // 이 구간은 팔(어깨→팔꿈치→손목) 방향의 좌우·위아래를 화면 2D 표식에서, 앞뒤는 3D 부호만 가져와 팔 길이를 지켜 다시 세운다.
 // 경계 0.3초는 원래 값과 섞는다. ?arm2d=all 이면 전체 구간(비교용). 2026-10-31 사용자: '내 인생의' 춤동작 보정
-const ARM2D = [];                                     // 45.9~48.4초에 써 봤으나 인식 자체가 팔 높이를 놓쳐 차이가 거의 없어 끔(?arm2d=all로 비교)
+const ARM2D = [[39.6, 42.8]];                         // '내 모든 걸 가져도': 3D는 팔을 20~50°로 작게, 화면 2D는 거의 수평으로 크게 휘두른다(45.9~48.4초는 효과가 없어 뺌)
 const ARM2D_ALL = new URLSearchParams(location.search).get('arm2d') === 'all';
 const arm2dW = t => ARM2D_ALL ? 1 : Math.max(0, ...ARM2D.map(([a, b]) => Math.min(1, (t - a) / .3 + 0, (b - t) / .3)));
 // 동작이 띄엄띄엄(2026-10-31 사용자, #11 '와안전 찐이야'): MediaPipe 좌표의 프레임마다 떨림 + 1/30초 사이를 직선으로 이어
@@ -567,6 +567,16 @@ $('peSave').onclick = async () => {
   const r = await fetch('api/pose-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keys: PK.keys }) }).catch(() => null);
   $('peMsg').textContent = r && r.ok ? '저장됨' : '저장 실패(로컬 서버에서만 됨)'; if (r && r.ok) peDirty = false; peShow();
 };
+// 뜀: '가장 낮은 발을 바닥에' 붙이면 댄서가 뛰어도 봉식이는 꼿꼿이 서 있어 인형 같았다(2026-10-31 사용자: '내 모든 걸 가져도').
+// 화면에서 가장 낮은 발(발목·뒤꿈치·발끝)이 앞뒤 0.5초의 바닥(90백분위)보다 올라간 만큼 몸을 띄운다(4px 아래 무시, 최대 8cm, 앞뒤 2프레임 평활)
+const LIFT = (() => {
+  const fy = M.lm.map(f => Math.max(...[27, 28, 29, 30, 31, 32].map(k => f[2 * k + 1])));
+  const raw = fy.map((y, i) => {
+    const w = fy.slice(Math.max(0, i - 15), i + 16).sort((a, b) => a - b), base = w[Math.floor(w.length * .9)];   // ±0.5초: 걸어 나오는 느린 변화는 빼고 짧은 뜀만
+    return Math.max(0, base - y - 4);
+  });
+  return raw.map((_, i) => { let s = 0, n = 0; for (const [d, k] of [[-2, 1], [-1, 4], [0, 6], [1, 4], [2, 1]]) if (raw[i + d] !== undefined) { s += raw[i + d] * k; n += k; } return s / n; });
+})();
 function pose(t) {
   for (const [n, b] of Object.entries(bone)) { b.quaternion.copy(rest[n].q); b.position.copy(rest[n].p); }
   model.updateMatrixWorld(true);
@@ -672,7 +682,7 @@ function pose(t) {
   const dx = ((hipX[i] + (hipX[i + 1] - hipX[i]) * a) - hipX0) * mPerPx;
   const minY = Math.min(...FEET.map(n => wpos(bone[n]).y));
   const hw = wpos(bone.Hips);
-  hw.x = restHips.x + dx; hw.y += restMinY - minY;
+  hw.x = restHips.x + dx; hw.y += restMinY - minY + Math.min(.08, (LIFT[i] + (LIFT[i + 1] - LIFT[i]) * a) * mPerPx);   // 댄서가 뛰면 같이 뜬다(최대 8cm)
   bone.Hips.position.copy(bone.Hips.parent.worldToLocal(hw));
   model.updateMatrixWorld(true);
 }
