@@ -372,45 +372,6 @@ for (const S of ['Left', 'Right']) {
   const ys = pts.map(p => p.y).sort((x, y) => x - y), yLo = ys[Math.floor(ys.length * .25)];
   THUMB_PTS[S] = pts.filter(p => p.y >= yLo).map(p => p.sub(c));
 }
-// 손목 단면(편 손 메시의 손 뼈 기준 가장 낮은 2cm 중심) — 엄지척·하트·삿대질로 손을 돌릴 때 이 점을 축으로 돌려 손이 소매에서 빠지지 않게(2026-10-31)
-const STUMP = {};
-for (const S of ['Left', 'Right']) {
-  const o = swapHands[S].open, mesh = o && (o.isSkinnedMesh ? o : o.children.find(c => c.isSkinnedMesh)); if (!mesh) continue;
-  const bi = mesh.skeleton.bones.findIndex(b => b.name.endsWith(`${S}Hand`)), inv = mesh.skeleton.boneInverses[bi];
-  const pos = mesh.geometry.attributes.position, pts = [];
-  for (let i = 0; i < pos.count; i += 3) pts.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.bindMatrix).applyMatrix4(inv));
-  const lo = Math.min(...pts.map(p => p.y)), band = pts.filter(p => p.y < lo + .02);
-  STUMP[S] = band.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / band.length);
-}
-// 소매 입구 = 몸 텍스처에서 흰 셔츠 소맷부리 색인 정점(손 뼈 14cm 안, 손 뼈 가중치 없는 것)의 고리.
-// 손 뼈가 손바닥 가운데에 있고 소매 끝은 리그 축에서 5~7cm 비껴 있어, 손 모양을 바꾸거나 손을 꺾으면 손목이 소매 밖으로 빠져 보였다
-// (2026-10-31 사용자 6·33·39·54박) → 매 프레임 이 고리의 실제(스키닝 후) 중심에 손목 단면(STUMP)을 붙인다(glueWrist).
-// 소매 안쪽 안감 구멍(가장자리 고리)이나 아래팔 축으로 썬 단면 중심은 실제 보이는 소맷부리와 어긋나 쓰지 않았다.
-const CUFF_IDX = {};
-let cuffReady = false;
-function buildCuff() {                              // 텍스처 그림이 다 읽힌 뒤 한 번(공개판은 처음 프레임에 아직 안 읽혀 있었다)
-  const sk = skinned.skeleton, g = skinned.geometry, pos = g.attributes.position, uv = g.attributes.uv, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
-  const map = skinned.material.map, img = map && map.image;
-  if (!img || !(img.naturalWidth || img.width) || img.complete === false) return;
-  cuffReady = true;
-  if (uv) {
-    const cc = document.createElement('canvas'); cc.width = img.width; cc.height = img.height;
-    const cx = cc.getContext('2d'); cx.drawImage(img, 0, 0); const px = cx.getImageData(0, 0, img.width, img.height).data;
-    for (const S of ['Left', 'Right']) {
-      const hi = sk.bones.findIndex(b => b.name.endsWith(`${S}Hand`)); if (hi < 0) continue;
-      const inv = sk.boneInverses[hi], list = [];
-      for (let i = 0; i < pos.count; i++) {
-        if (new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(skinned.bindMatrix).applyMatrix4(inv).length() > .14) continue;
-        let wh = 0; for (let k = 0; k < 4; k++) if (si.getComponent(i, k) === hi) wh += sw.getComponent(i, k);
-        if (wh > .05) continue;
-        let u = uv.getX(i) % 1, v = uv.getY(i) % 1; if (u < 0) u += 1; if (v < 0) v += 1;
-        const X = Math.min(img.width - 1, Math.floor(u * img.width)), Y = Math.min(img.height - 1, Math.floor((map.flipY ? 1 - v : v) * img.height)), o = (Y * img.width + X) * 4;
-        if (px[o] > 215 && px[o + 1] > 215 && px[o + 2] > 200) list.push(i);
-      }
-      if (list.length >= 20) CUFF_IDX[S] = list.filter((_, k) => k % 2 === 0);
-    }
-  }
-}
 const bone = {};
 for (const b of skinned.skeleton.bones) bone[b.name.replace(/^mixamorig:?/, '')] = b;
 const helper = new THREE.SkeletonHelper(model); helper.visible = false; scene.add(helper);
@@ -453,15 +414,15 @@ function setWorldQuat(b, qw) {
   b.quaternion.copy(pq.multiply(qw));
   b.updateMatrixWorld(true);
 }
-function glueWrist(S) {                             // 손목 단면을 소맷부리 고리 중심(1cm 안쪽)에 붙인다(손 모양·손목 꺾임과 상관없이)
-  if (!cuffReady) buildCuff();
-  const hb = bone[`${S}Hand`], list = CUFF_IDX[S];
-  if (!STUMP[S] || !list) return;
-  const c = new THREE.Vector3(), v = new THREE.Vector3(), pos = skinned.geometry.attributes.position;
-  for (const i of list) c.add(skinned.applyBoneTransform(i, v.fromBufferAttribute(pos, i)).applyMatrix4(skinned.matrixWorld));
-  c.multiplyScalar(1 / list.length);
-  c.addScaledVector(wpos(bone[`${S}ForeArm`]).sub(c).normalize(), .01);
-  hb.position.copy(hb.parent.worldToLocal(wpos(hb).add(c.sub(hb.localToWorld(STUMP[S].clone()))))); hb.updateMatrixWorld(true);
+// 손목 꺾임 제한: 손(손목→중지 뿌리)이 아래팔 방향에서 WRIST_MAX보다 꺾이지 않게(사람 손목처럼). 손목 관절은 리그에서
+// 소맷부리로 옮겼다(b003/remake-v1/wrist_joint.py) — 손은 소매 입구를 중심으로 돌고, 손목 메시는 아래팔→손 가중치로 이어져 휜다.
+const WRIST_MAX = THREE.MathUtils.degToRad(60);
+function limitWrist(S) {
+  const hb = bone[`${S}Hand`], mid = bone[`${S}HandMiddle1`] ?? bone[`${S}HandIndex1`]; if (!mid) return;
+  const fore = wpos(hb).sub(wpos(bone[`${S}ForeArm`])).normalize(), hand = wpos(mid).sub(wpos(hb)).normalize();
+  const ang = fore.angleTo(hand); if (ang <= WRIST_MAX) return;
+  const ax = new THREE.Vector3().crossVectors(hand, fore).normalize();
+  setWorldQuat(hb, new THREE.Quaternion().setFromAxisAngle(ax, ang - WRIST_MAX).multiply(wquat(hb)));
 }
 function aim(b, child, dir) {
   const cur = wpos(child).sub(wpos(b)).normalize();
@@ -836,7 +797,7 @@ function pose(t) {
     if (tilt > 1e-3) fix.slerp(new THREE.Quaternion(), Math.max(0, 1 - THREE.MathUtils.degToRad(45) / tilt));
     setWorldQuat(bone[`${S}Hand`], fix.multiply(best.qa));
   }
-  model.updateMatrixWorld(true); glueWrist('Left'); glueWrist('Right');
+  limitWrist('Left'); limitWrist('Right');
   applyMouth(t); applyLyric(t);
   model.updateMatrixWorld(true);
   // 이동: 좌우는 원본 엉덩이 화면 이동, 높이는 가장 낮은 발을 바닥에 붙인다
@@ -952,4 +913,4 @@ function frame() {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__v2 = { STUMP, CUFF_IDX, PK, P3: t => P3(t), PKP: t => applyPoseKeys(P3(t), t), armMeasure, bodyMeasure, setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
+window.__v2 = { PK, P3: t => P3(t), PKP: t => applyPoseKeys(P3(t), t), armMeasure, bodyMeasure, setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
