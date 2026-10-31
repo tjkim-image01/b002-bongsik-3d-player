@@ -32,6 +32,16 @@
       <div id="loading">3D 봉식이 불러오는 중…</div>
       <div id="lyric"></div>
       <div id="syl" hidden></div>
+      <div id="poseEdit" hidden>
+        <div class="row">부위 <select id="peP"><option value="LeftArm">왼팔(화면 오른쪽)</option><option value="RightArm">오른팔(화면 왼쪽)</option><option value="Body">몸 방향</option></select>
+          <b id="peWhere">·</b> <button id="pePrev">◀ 키</button><button id="peNext">키 ▶</button></div>
+        <div class="row arm">들기 <input id="peE" type="range" min="0" max="180"><span id="peEv"></span>
+          앞뒤 <input id="peA" type="range" min="-180" max="180"><span id="peAv"></span>
+          굽힘 <input id="peB" type="range" min="0" max="160"><span id="peBv"></span></div>
+        <div class="row body" hidden>방향 <input id="peY" type="range" min="-180" max="180"><span id="peYv"></span> <small>(0 정면 · 90 화면 오른쪽 · ±180 뒤)</small></div>
+        <div class="row"><button id="peRead">지금 자세 읽기</button> <button id="peDel">이 키 지우기</button> <button id="peListen">▶ 앞뒤 1초 보기</button>
+          <button id="peSave">저장·적용</button> <span id="peMsg"></span></div>
+      </div>
       <div id="sylEdit" hidden>
         <div class="row"><button id="sePrev">◀ 이전</button> <b id="seName">·</b> <button id="seNext">다음 ▶</button>
           번호로 가기 <input id="seGo" type="number" min="1" style="width:56px" placeholder="번호"></div>
@@ -50,6 +60,7 @@
   <label>속도 <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select></label>
   <label><input type="checkbox" id="singOnly"> 노래만(입 교정)</label>
   <button id="half" aria-pressed="false">½ 속도</button>
+  <label><input type="checkbox" id="poseOn"> 자세 교정</label>
   <label><input type="checkbox" id="showOverlay" checked> 원작 위 졸라맨</label>
   <label><input type="checkbox" id="showBones"> 3D 뼈대</label>
   <span class="cams">

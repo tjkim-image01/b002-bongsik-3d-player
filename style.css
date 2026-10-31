@@ -43,5 +43,12 @@ label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted)
 #sylEdit #seName { font-size: 20px; color: #ffd34d; padding: 0 8px; }
 #sylEdit span[id^=se] { display: inline-block; min-width: 52px; text-align: center; font-family: ui-monospace, Menlo, monospace; }
 #sylEdit .dirty { color: #ffd34d; }
+#syl.compact { font-size: 11px; padding: 4px 8px; opacity: .85; }
+#syl.compact b { font-size: 16px; }
+#poseEdit { position: absolute; left: 12px; bottom: 52px; background: rgba(20,16,28,.85); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 13px; line-height: 2.1; }
+#poseEdit button, #poseEdit select { background: #2e2737; color: #fff; border: 1px solid #5a4d6b; border-radius: 5px; padding: 1px 7px; font: inherit; cursor: pointer; }
+#poseEdit input[type=range] { width: 120px; vertical-align: middle; }
+#poseEdit span[id$=v] { display: inline-block; min-width: 38px; font-family: ui-monospace, Menlo, monospace; color: #ffd34d; }
+#poseEdit #peWhere { color: #ffd34d; padding: 0 6px; }
 
 body[data-mode="public"] main { height: calc(100vh - 150px); }

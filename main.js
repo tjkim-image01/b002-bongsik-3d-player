@@ -41,12 +41,46 @@ const MP = {
   Right: { sh: 12, el: 14, wr: 16, pk: 18, ix: 20, hip: 24, kn: 26, an: 28, ft: 32, hl: 30, ear: 8, hand: 'R' },
 };
 const frameAt = t => { const f = THREE.MathUtils.clamp(t * FPS, 0, N - 1.001); const i = Math.floor(f); return [i, f - i]; };
+// 팔 2D 보정 구간(초): 옆·뒤로 돌 때 MediaPipe 3D 깊이가 흔들려 팔이 화면 쪽으로 접힌다(예: 46.8초 팔을 머리 위로 뻗는데 손이 얼굴 앞).
+// 이 구간은 팔(어깨→팔꿈치→손목) 방향의 좌우·위아래를 화면 2D 표식에서, 앞뒤는 3D 부호만 가져와 팔 길이를 지켜 다시 세운다.
+// 경계 0.3초는 원래 값과 섞는다. ?arm2d=all 이면 전체 구간(비교용). 2026-10-31 사용자: '내 인생의' 춤동작 보정
+const ARM2D = [];                                     // 45.9~48.4초에 써 봤으나 인식 자체가 팔 높이를 놓쳐 차이가 거의 없어 끔(?arm2d=all로 비교)
+const ARM2D_ALL = new URLSearchParams(location.search).get('arm2d') === 'all';
+const arm2dW = t => ARM2D_ALL ? 1 : Math.max(0, ...ARM2D.map(([a, b]) => Math.min(1, (t - a) / .3 + 0, (b - t) / .3)));
+// 동작이 띄엄띄엄(2026-10-31 사용자, #11 '와안전 찐이야'): MediaPipe 좌표의 프레임마다 떨림 + 1/30초 사이를 직선으로 이어
+// 프레임 경계마다 속도가 꺾였다 → 앞뒤 2프레임 가중 평균([1 4 6 4 1]/16)으로 떨림만 걷고, 프레임 사이는 Catmull-Rom 곡선으로 잇는다
+const WS = M.world.map((_, i) => M.world[0].map((__, c) => {
+  let s = 0, w = 0;
+  for (const [d, k] of [[-2, 1], [-1, 4], [0, 6], [1, 4], [2, 1]]) { const f = M.world[i + d]; if (f) { s += f[c] * k; w += k; } }
+  return s / w;
+}));
+const cr = (p0, p1, p2, p3, u) => .5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (-p0 + 3 * p1 - 3 * p2 + p3) * u * u * u);
 function P3(t) {                 // MediaPipe 3D(엉덩이 중심, y 아래, z 카메라 쪽 음수) → three(y 위, 카메라 쪽 +z)
-  const [i, a] = frameAt(t), A = M.world[i], B = M.world[i + 1];
+  const [i, a] = frameAt(t), A0 = WS[Math.max(0, i - 1)], A = WS[i], B = WS[i + 1], B1 = WS[Math.min(WS.length - 1, i + 2)];
   const out = [];
   for (let k = 0; k < 33; k++) {
-    const x = A[3 * k] + (B[3 * k] - A[3 * k]) * a, y = A[3 * k + 1] + (B[3 * k + 1] - A[3 * k + 1]) * a, z = A[3 * k + 2] + (B[3 * k + 2] - A[3 * k + 2]) * a;
-    out.push(new THREE.Vector3(x, -y, -z));
+    const c = q => cr(A0[3 * k + q], A[3 * k + q], B[3 * k + q], B1[3 * k + q], a);
+    out.push(new THREE.Vector3(c(0), -c(1), -c(2)));
+  }
+  const w = arm2dW(t);
+  if (w > 0) {
+    const q = P2(t), d2 = (u, v) => new THREE.Vector2(q[v][0] - q[u][0], -(q[v][1] - q[u][1]));      // 화면 위가 +y
+    const torso3 = mid(out[11], out[12]).distanceTo(mid(out[23], out[24]));
+    const torso2 = Math.hypot((q[11][0] + q[12][0] - q[23][0] - q[24][0]) / 2, (q[11][1] + q[12][1] - q[23][1] - q[24][1]) / 2);
+    const s = torso3 / Math.max(torso2, 1e-3);                                                          // 화소 → 미터
+    for (const m of [MP.Left, MP.Right]) {
+      for (const [u, v] of [[m.sh, m.el], [m.el, m.wr]]) {
+        const len = out[u].distanceTo(out[v]), dv = d2(u, v).multiplyScalar(s);
+        const xy = Math.min(dv.length(), len * .999), sz = Math.sign(out[v].z - out[u].z) || 1;
+        const dir = new THREE.Vector3(dv.x, dv.y, 0).setLength(xy);
+        dir.z = sz * Math.sqrt(Math.max(0, len * len - xy * xy));
+        const fixed = out[u].clone().add(dir);
+        const shift = fixed.sub(out[v]).multiplyScalar(w);
+        out[v].add(shift);
+        if (v === m.el) for (const c of [m.wr, m.pk, m.ix]) out[c].add(shift);                       // 팔꿈치를 옮기면 손도 같이
+        else for (const c of [m.pk, m.ix]) out[c].add(shift);
+      }
+    }
   }
   return out;
 }
@@ -159,13 +193,14 @@ const MOUTH_NAME = { rest: '쉼', m: 'A 다문 입', teeth: 'B 이 다문 입', 
 const CODE = { rest: '.', m: 'm', teeth: 't', open1: '1', open2: '2', open3: '3', open4: '4', round1: 'r', o: 'o', round2: 'R', u: 'u' };
 let shownSyl = '';
 function applySyl(t) {
-  sylEl.hidden = !singBox.checked;
-  if (!singBox.checked) { seEl.hidden = true; return; }
+  sylEl.hidden = false;                                  // 번호·입 모양은 춤출 때도 보인다(2026-10-31 사용자). 고치는 칸은 노래만 모드에서만
+  sylEl.classList.toggle('compact', !singBox.checked);
+  if (!singBox.checked) seEl.hidden = true;
   const i = SYL.findIndex(s => t >= s.a - .07 && t < s.b);
   const nx = i >= 0 ? i + 1 : SYL.findIndex(s => s.a > t);               // 쉬는 곳이면 다음에 올 음절
   const pick = i >= 0 ? i : nx;
   if (pick >= 0 && pick !== selI && !seDirty) { selI = pick; showEdit(); }   // 재생·이동하는 곳의 음절을 따라간다(고치는 중엔 고정)
-  seEl.hidden = selI < 0;
+  seEl.hidden = selI < 0 || !singBox.checked;
   const cur = SYL[i], k = Math.round(t * (VIS?.fps ?? 30)), tex = VIS?.frames[Math.max(0, k)] ?? 'rest';
   const fmt2 = s => s ? `${s.n}  ${s.a.toFixed(2)}–${s.b.toFixed(2)}  ${s.txt}` : '';
   // 입 번호 줄: 프레임마다 입 그림 한 글자(. 쉼, m 다문 입, t 이 다문 입, 1~4 벌림 단계, r·o·R 둥근 입, u 내민 입), 지금 프레임은 [ ]
@@ -371,7 +406,8 @@ const shapes = [];
 if (COLLIDE) {
   model.updateMatrixWorld(true);
   const t = COLLIDE.torso, h = COLLIDE.head;
-  shapes.push({ bone: bone[t.bone], restInv: bone[t.bone].matrixWorld.clone().invert(), c: new THREE.Vector3(...t.center), r: new THREE.Vector3(...t.radii).multiplyScalar(1.06) });
+  for (const s of COLLIDE.torsoParts ?? [t])            // 배·가슴 두 타원체(있으면) — 몸 전체를 덮는다
+    shapes.push({ bone: bone[s.bone], restInv: bone[s.bone].matrixWorld.clone().invert(), c: new THREE.Vector3(...s.center), r: new THREE.Vector3(...s.radii).multiplyScalar(1.06) });
   shapes.push({ bone: bone[h.bone], restInv: bone[h.bone].matrixWorld.clone().invert(), c: new THREE.Vector3(...h.center), r: new THREE.Vector3(1, 1, 1).multiplyScalar(h.radius * 1.05) });
 }
 function pushOut(p) {              // 세계 좌표 점 → 몸 밖으로 민 점(안 들어갔으면 그대로)
@@ -421,6 +457,114 @@ const bendDeg = new Float32Array(N), bendW = new Float32Array(N);
 }
 function bendAt(t) { const [i, a] = frameAt(t); return [bendDeg[i] + (bendDeg[i + 1] - bendDeg[i]) * a, bendW[i] + (bendW[i + 1] - bendW[i]) * a]; }
 
+// ── 자세 교정(키 포즈): 인식이 놓친 팔·몸 방향을 시각마다 손으로 지정한다(2026-10-31 사용자: '내 인생의' 춤동작, 자세부터 고치자) ──
+// data/pose-keys.json = { keys: [{ t, part: 'LeftArm'|'RightArm'|'Body', e, a, b, y }] }
+//   팔: e 들기(0 아래로 늘어뜨림 · 90 수평 · 180 머리 위), a 앞뒤(0 옆 · +90 앞 · −90 뒤), b 팔꿈치 굽힘(0 곧게 · 150 접음, 앞쪽으로 굽힘)
+//   몸: y 방향(0 정면 · +90 화면 오른쪽을 봄 · ±180 뒤). 각도는 댄서 몸통 기준(팔), 화면 기준(몸)
+// 같은 부위 키가 1.2초 안에 이어지면 한 덩어리 — 덩어리 안은 키 사이를 선형으로 잇고, 앞뒤 0.2초에서 원래 동작과 섞는다.
+const PK = await fetch('data/pose-keys.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : { keys: [] }).catch(() => ({ keys: [] }));
+const PK_GAP = 1.2, PK_RAMP = .2;
+function pkAt(part, t) {
+  const ks = PK.keys.filter(k => k.part === part).sort((a, b) => a.t - b.t);
+  if (!ks.length) return null;
+  const runs = [[ks[0]]];
+  for (const k of ks.slice(1)) (k.t - runs.at(-1).at(-1).t <= PK_GAP ? runs.at(-1) : runs[runs.push([]) - 1]).push(k);
+  for (const r of runs) {
+    const a = r[0].t - PK_RAMP, b = r.at(-1).t + PK_RAMP;
+    if (t < a || t > b) continue;
+    const w = Math.min(1, (t - a) / PK_RAMP, (b - t) / PK_RAMP);
+    let v;
+    if (t <= r[0].t) v = r[0]; else if (t >= r.at(-1).t) v = r.at(-1);
+    else { const i = r.findIndex(k => k.t > t), k0 = r[i - 1], k1 = r[i], u = (t - k0.t) / (k1.t - k0.t);
+      v = Object.fromEntries(['e', 'a', 'b', 'y'].map(n => [n, k0[n] + ((n === 'y' ? ((k1[n] - k0[n] + 540) % 360) - 180 : k1[n] - k0[n])) * u])); }
+    return { w, v };
+  }
+  return null;
+}
+const D2R = Math.PI / 180;
+function torsoFrame(p) {
+  const L = MP.Left, R = MP.Right;
+  const across = p[L.sh].clone().sub(p[R.sh]).normalize();
+  const up = mid(p[L.sh], p[R.sh]).sub(mid(p[L.hip], p[R.hip])).normalize();
+  const fwd = new THREE.Vector3().crossVectors(across, up).normalize();
+  return { across, up: new THREE.Vector3().crossVectors(fwd, across).normalize(), fwd };
+}
+function armMeasure(p, S) {                     // 지금 자세의 e·a·b(키 처음 찍을 때 출발점)
+  const m = MP[S], f = torsoFrame(p), side = S === 'Left' ? f.across : f.across.clone().negate();
+  const u = p[m.el].clone().sub(p[m.sh]).normalize(), fo = p[m.wr].clone().sub(p[m.el]).normalize();
+  const e = Math.acos(THREE.MathUtils.clamp(-u.dot(f.up), -1, 1)) / D2R;
+  const a = Math.atan2(u.dot(f.fwd), u.dot(side)) / D2R;
+  const b = Math.acos(THREE.MathUtils.clamp(u.dot(fo), -1, 1)) / D2R;
+  return { e: Math.round(e), a: Math.round(a), b: Math.round(b) };
+}
+const bodyMeasure = p => { const f = torsoFrame(p); return { y: Math.round(Math.atan2(f.fwd.x, f.fwd.z) / D2R) }; };
+function applyPoseKeys(p, t) {
+  const L = MP.Left, R = MP.Right;
+  const kb = pkAt('Body', t);
+  if (kb) {                                     // 몸 방향: 엉덩이 가운데를 축으로 전체를 돌린다
+    const cur = bodyMeasure(p).y, d = (((kb.v.y - cur + 540) % 360) - 180) * kb.w * D2R;
+    const c = mid(p[L.hip], p[R.hip]), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), d);
+    for (const v of p) v.sub(c).applyQuaternion(q).add(c);
+  }
+  for (const S of ['Left', 'Right']) {
+    const k = pkAt(S + 'Arm', t); if (!k) continue;
+    const m = MP[S], f = torsoFrame(p), side = S === 'Left' ? f.across : f.across.clone().negate();
+    const { e, a, b } = k.v;
+    const upper = f.up.clone().multiplyScalar(-Math.cos(e * D2R))
+      .add(side.clone().multiplyScalar(Math.sin(e * D2R) * Math.cos(a * D2R))).add(f.fwd.clone().multiplyScalar(Math.sin(e * D2R) * Math.sin(a * D2R))).normalize();
+    let perp = f.fwd.clone().addScaledVector(upper, -f.fwd.dot(upper));
+    if (perp.lengthSq() < 1e-4) perp = f.up.clone().addScaledVector(upper, -f.up.dot(upper));
+    perp.normalize();
+    const fore = upper.clone().multiplyScalar(Math.cos(b * D2R)).addScaledVector(perp, Math.sin(b * D2R));
+    const lu = p[m.sh].distanceTo(p[m.el]), lf = p[m.el].distanceTo(p[m.wr]);
+    const el = p[m.sh].clone().addScaledVector(upper, lu), wr = el.clone().addScaledVector(fore, lf);
+    const dEl = el.sub(p[m.el]).multiplyScalar(k.w), dWr = wr.sub(p[m.wr]).multiplyScalar(k.w);
+    p[m.el].add(dEl);
+    for (const c of [m.wr, m.pk, m.ix]) p[c].add(dWr);
+  }
+  return p;
+}
+// 자세 교정 칸: 멈춘 시각에 부위의 값을 밀면 그 시각(1/30초 단위)에 키가 생기고 바로 보인다. 저장하면 data/pose-keys.json
+const poseBox = $('poseOn'), peEl = $('poseEdit');
+let peDirty = false, peUntil = 0;
+const peT = () => Math.round(audio.currentTime * 30) / 30;
+const peKey = () => PK.keys.find(k => k.part === $('peP').value && Math.abs(k.t - peT()) < .02);
+function peShow() {
+  peEl.hidden = !poseBox.checked;
+  if (!poseBox.checked) return;
+  const part = $('peP').value, body = part === 'Body';
+  peEl.querySelector('.arm').hidden = body; peEl.querySelector('.body').hidden = !body;
+  const k = peKey(), raw = P3(peT()), v = k ?? (body ? bodyMeasure(raw) : armMeasure(raw, part === 'LeftArm' ? 'Left' : 'Right'));
+  for (const n of ['e', 'a', 'b', 'y']) { const el = $('pe' + n.toUpperCase()); if (el && v[n] !== undefined) { el.value = v[n]; $('pe' + n.toUpperCase() + 'v').textContent = Math.round(v[n]) + '°'; } }
+  const bi = typeof beatIndex === 'function' ? beatIndex(peT()) + 1 : '';
+  const n = PK.keys.filter(x => x.part === part).length;
+  $('peWhere').textContent = `${peT().toFixed(2)}초 · ${bi}박 · ${k ? '키 있음' : '원본'} · 이 부위 키 ${n}개`;
+  $('peSave').style.color = peDirty ? '#ffd34d' : '';
+}
+function peSet() {                                   // 밀대 → 지금 시각의 키 만들기/고치기
+  const part = $('peP').value; let k = peKey();
+  if (!k) { k = { t: peT(), part }; PK.keys.push(k); }
+  if (part === 'Body') k.y = +$('peY').value; else { k.e = +$('peE').value; k.a = +$('peA').value; k.b = +$('peB').value; }
+  peDirty = true; peShow();
+}
+for (const id of ['peE', 'peA', 'peB', 'peY']) $(id).oninput = peSet;
+$('peP').onchange = peShow;
+poseBox.onchange = () => { if (poseBox.checked) setPlaying(false); peShow(); };
+$('peRead').onclick = () => { const k = peKey(); if (k) PK.keys.splice(PK.keys.indexOf(k), 1); peDirty = true; peShow(); };   // 키를 빼고 원본 자세로
+$('peDel').onclick = $('peRead').onclick;
+$('peRead').onclick = () => { const raw = P3(peT()), part = $('peP').value;
+  const v = part === 'Body' ? bodyMeasure(raw) : armMeasure(raw, part === 'LeftArm' ? 'Left' : 'Right');
+  for (const n of Object.keys(v)) $('pe' + n.toUpperCase()).value = v[n]; peSet(); };
+const peJump = d => { const ks = PK.keys.filter(k => k.part === $('peP').value).map(k => k.t).sort((a, b) => a - b);
+  const t = d > 0 ? ks.find(x => x > peT() + .01) : ks.reverse().find(x => x < peT() - .01);
+  if (t !== undefined) { setPlaying(false); audio.currentTime = video.currentTime = t; setTimeout(peShow, 50); } };
+$('pePrev').onclick = () => peJump(-1); $('peNext').onclick = () => peJump(1);
+$('peListen').onclick = () => { const t = peT(); audio.currentTime = video.currentTime = Math.max(0, t - 1); peUntil = t + 1; setPlaying(true); };
+$('peSave').onclick = async () => {
+  PK.keys.sort((a, b) => a.t - b.t);
+  const r = await fetch('api/pose-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keys: PK.keys }) }).catch(() => null);
+  $('peMsg').textContent = r && r.ok ? '저장됨' : '저장 실패(로컬 서버에서만 됨)'; if (r && r.ok) peDirty = false; peShow();
+};
 function pose(t) {
   for (const [n, b] of Object.entries(bone)) { b.quaternion.copy(rest[n].q); b.position.copy(rest[n].p); }
   model.updateMatrixWorld(true);
@@ -431,7 +575,7 @@ function pose(t) {
     return;
   }
   applySyl(t);
-  const p = P3(t), L = MP.Left, R = MP.Right;
+  const p = applyPoseKeys(P3(t), t), L = MP.Left, R = MP.Right;
   const hipM = mid(p[L.hip], p[R.hip]), shM = mid(p[L.sh], p[R.sh]);
   const [bend, bw] = bendAt(t);
   const hipAcross = p[L.hip].clone().sub(p[R.hip]);
@@ -614,6 +758,8 @@ addEventListener('resize', resize); resize();
 
 function frame() {
   const t = Math.min(audio.currentTime, DUR - 1e-3);
+  if (peUntil && t >= peUntil) { peUntil = 0; setPlaying(false); audio.currentTime = video.currentTime = t - 1; }
+  if (poseBox.checked && audio.paused && Math.abs((frame.lastPe ?? -1) - t) > .001) { frame.lastPe = t; peShow(); }
   if (listenUntil && t >= listenUntil) { listenUntil = 0; setPlaying(false); audio.currentTime = video.currentTime = SYL[selI]?.a ?? t; }
   if (!audio.paused && !$('audio') && audio.currentTime >= DUR - 1e-3) setPlaying(false);
   if (!audio.paused && Math.abs(video.currentTime - t) > .12) video.currentTime = t;
@@ -631,4 +777,4 @@ function frame() {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__v2 = { setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
+window.__v2 = { PK, P3: t => P3(t), armMeasure, bodyMeasure, setShoulder: k => { SHOULDER_K = k; }, setBody: (h, n) => { HEAD_SCALE = h; NECK_UP = n; }, bendAt, pose, renderer, scene, camera, bone, audio, cam, M, setT: t => { audio.currentTime = t; video.currentTime = t; } };
