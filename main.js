@@ -416,7 +416,7 @@ function setWorldQuat(b, qw) {
 }
 // 손목 꺾임 제한: 손(손목→중지 뿌리)이 아래팔 방향에서 WRIST_MAX보다 꺾이지 않게(사람 손목처럼). 손목 관절은 리그에서
 // 소맷부리로 옮겼다(b003/remake-v1/wrist_joint.py) — 손은 소매 입구를 중심으로 돌고, 손목 메시는 아래팔→손 가중치로 이어져 휜다.
-const WRIST_MAX = THREE.MathUtils.degToRad(60);
+const WRIST_MAX = THREE.MathUtils.degToRad(25);   // 60°는 손이 큰 소매 입구(반지름 7cm) 옆으로 비껴 떨어져 보였다(97박) → 25°
 function limitWrist(S) {
   const hb = bone[`${S}Hand`], mid = bone[`${S}HandMiddle1`] ?? bone[`${S}HandIndex1`]; if (!mid) return;
   const fore = wpos(hb).sub(wpos(bone[`${S}ForeArm`])).normalize(), hand = wpos(mid).sub(wpos(hb)).normalize();
