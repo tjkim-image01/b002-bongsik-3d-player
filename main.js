@@ -153,7 +153,21 @@ function applyLyric(t) {
   const html = l ? l.words.map(w => t >= w.t0 && t < w.t1 ? `<b>${w.text}</b>` : w.text).join(' ') : '';
   if (html !== shownLyric) { lyricEl.innerHTML = html; shownLyric = html; }
 }
+// 턱 벌림(모프 JawOpen, b003/remake-v1/jaw_morph.py): 그림만 바뀌면 입이 스티커처럼 보여 입 단계만큼 실제 턱을 내린다.
+// 프레임마다 목표값을 [¼ ½ ¼]로 부드럽게 하고 프레임 사이는 선형 보간(화면 주사율과 무관하게 같은 움직임).
+const JAW_OF = { rest: 0, m: 0, open1: .15, round1: .2, open2: .4, o: .6, open3: .65, round2: .9, open4: 1 };
+const jawIdx = skinned.morphTargetDictionary?.JawOpen;
+const JAW = VIS && jawIdx !== undefined ? VIS.frames.map((_, k, f) => {
+  const g = i => JAW_OF[f[Math.min(f.length - 1, Math.max(0, i))]] ?? 0;
+  return .25 * g(k - 1) + .5 * g(k) + .25 * g(k + 1);
+}) : null;
+function applyJaw(t) {
+  if (!JAW) return;
+  const x = Math.max(0, t * VIS.fps), k = Math.min(JAW.length - 2, Math.floor(x)), a = Math.min(1, x - k);
+  skinned.morphTargetInfluences[jawIdx] = JAW[k] + (JAW[k + 1] - JAW[k]) * a;
+}
 function applyMouth(t) {
+  applyJaw(t);
   if (!VIS || !MOUTHS.rest) return;
   const v = VIS.frames[Math.min(VIS.frames.length - 1, Math.max(0, Math.round(t * VIS.fps)))] ?? 'rest';
   if (v === shownMouth) return;
