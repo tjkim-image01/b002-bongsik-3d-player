@@ -157,7 +157,8 @@ function applyLyric(t) {
 // 프레임마다 목표값을 [¼ ½ ¼]로 부드럽게 하고 프레임 사이는 선형 보간(화면 주사율과 무관하게 같은 움직임).
 // 노래할 때 입이 작다(2026-10-31 사용자) → 턱을 더 내린다. 1을 넘는 값은 모프를 더 늘린 것(1 = 1.6cm, 1.5 = 2.4cm)
 // 이어서 벌린 높이 80%(사용자) → 모두 0.8배
-const JAW_OF = Object.fromEntries(Object.entries({ rest: 0, m: 0, open1: .4, round1: .4, open2: .75, o: 1, open3: 1.1, round2: 1.35, open4: 1.5 }).map(([k, v]) => [k, v * .8]));
+// 가장 크게 벌린 입(open4·round2)만 10% 더 줄임(같은 날 사용자)
+const JAW_OF = Object.fromEntries(Object.entries({ rest: 0, m: 0, open1: .4, round1: .4, open2: .75, o: 1, open3: 1.1, round2: 1.35 * .9, open4: 1.5 * .9 }).map(([k, v]) => [k, v * .8]));
 const jawIdx = skinned.morphTargetDictionary?.JawOpen;
 const JAW = VIS && jawIdx !== undefined ? VIS.frames.map((_, k, f) => {
   const g = i => JAW_OF[f[Math.min(f.length - 1, Math.max(0, i))]] ?? 0;
