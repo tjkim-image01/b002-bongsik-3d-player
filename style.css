@@ -16,6 +16,10 @@ main { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 12px; padding: 
 #loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
 #lyric { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font-size: 20px; font-weight: 700; color: #fff; text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none; }
 #lyric b { color: #ffd34d; }
+#syl { position: absolute; left: 12px; top: 10px; font: 600 15px/1.5 ui-monospace, Menlo, monospace; color: #fff; text-shadow: 0 0 3px #000; pointer-events: none; white-space: pre; }
+#syl b { color: #ffd34d; font-size: 22px; }
+#syl i { color: #ffd34d; font-style: normal; font-weight: 800; }
+#syl { font-size: 13px; background: rgba(0,0,0,.35); padding: 6px 10px; border-radius: 6px; }
 #hand { position: absolute; left: 10px; bottom: 8px; font-size: 12px; color: var(--muted); }
 footer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 20px 14px; }
 footer button, footer select { background: #2e2737; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer; }
@@ -34,5 +38,10 @@ label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted)
 #beatNo { min-width: 76px; text-align: center; font-variant-numeric: tabular-nums; }
 #saved { color: var(--teal); font-size: 12px; min-width: 40px; }
 .cmp { color: var(--muted); font-size: 12px; }
+#sylEdit { position: absolute; left: 12px; bottom: 52px; background: rgba(20,16,28,.82); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 13px; line-height: 2; }
+#sylEdit button, #sylEdit select, #sylEdit input { background: #2e2737; color: #fff; border: 1px solid #5a4d6b; border-radius: 5px; padding: 1px 7px; font: inherit; cursor: pointer; }
+#sylEdit #seName { font-size: 20px; color: #ffd34d; padding: 0 8px; }
+#sylEdit span[id^=se] { display: inline-block; min-width: 52px; text-align: center; font-family: ui-monospace, Menlo, monospace; }
+#sylEdit .dirty { color: #ffd34d; }
 
 body[data-mode="public"] main { height: calc(100vh - 150px); }

@@ -130,7 +130,7 @@ const HAS_SWAP = Object.keys(swapHands.Left).length > 0;
 const MOUTHS = {};
 if (MODEL_KEY === 'remake' && VIS) {
   const tl = new THREE.TextureLoader();
-  await Promise.all((VIS.shapes ?? ['rest', 'm', 'a', 'e', 'i', 'o', 'u']).map(async v => {
+  await Promise.all([...new Set([...(VIS.shapes ?? []), 'rest', 'm', 'teeth', 'open1', 'open2', 'open3', 'open4', 'round1', 'o', 'round2', 'u'])].map(async v => {   // 고치다 새 입이 나와도 바로 보이게 전부
     const t = await tl.loadAsync(`media/mouth/texture-${v}.jpg`).catch(() => null);   // 없는 그림은 rest로
     if (!t) return;
     t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
@@ -147,6 +147,34 @@ const srtSec = s => { const [h, m, x] = s.trim().replace(',', '.').split(':'); r
 const LINES = SRT.split(/\n\s*\n/).map(b => b.trim().split('\n')).filter(b => b.length >= 3)
   .map(([, tc, ...txt]) => { const [a, b] = tc.split('-->').map(srtSec); return { a, b, words: WORDS.filter(w => w.t0 >= a - .01 && w.t1 <= b + .01) }; });
 const lyricEl = document.getElementById('lyric');
+// 노래만(입 교정) 모드: 춤 없이 서서 노래하고, 지금 음절의 입 모양 글자(data/syllables.srt, 한국어 립싱크 A~G)와 입 그림을 보여 준다
+const parseSyl = text => text.split(/\n\s*\n/).map(b => b.trim().split('\n'))
+  .filter(b => b.length >= 3).map(([n, tc, txt]) => { const [a, b] = tc.split('-->').map(srtSec); return { n: +n, a, b, txt }; });
+let SYL = parseSyl(await fetch('data/syllables.srt').then(r => r.ok ? r.text() : '').catch(() => ''));
+const sylEl = document.getElementById('syl');
+const singBox = document.getElementById('singOnly');
+singBox.checked = new URLSearchParams(location.search).get('sing') === '1';
+const MOUTH_NAME = { rest: '쉼', m: 'A 다문 입', teeth: 'B 이 다문 입', open1: '살짝(open1)', open2: 'C 약간(open2)', open3: '벌림(open3)', open4: 'D 크게(open4)',
+  round1: '둥근 작게(round1)', o: '둥근(o)', round2: '둥근 크게(round2)', u: '내민(u)' };
+const CODE = { rest: '.', m: 'm', teeth: 't', open1: '1', open2: '2', open3: '3', open4: '4', round1: 'r', o: 'o', round2: 'R', u: 'u' };
+let shownSyl = '';
+function applySyl(t) {
+  sylEl.hidden = !singBox.checked;
+  if (!singBox.checked) { seEl.hidden = true; return; }
+  const i = SYL.findIndex(s => t >= s.a - .07 && t < s.b);
+  const nx = i >= 0 ? i + 1 : SYL.findIndex(s => s.a > t);               // 쉬는 곳이면 다음에 올 음절
+  const pick = i >= 0 ? i : nx;
+  if (pick >= 0 && pick !== selI && !seDirty) { selI = pick; showEdit(); }   // 재생·이동하는 곳의 음절을 따라간다(고치는 중엔 고정)
+  seEl.hidden = selI < 0;
+  const cur = SYL[i], k = Math.round(t * (VIS?.fps ?? 30)), tex = VIS?.frames[Math.max(0, k)] ?? 'rest';
+  const fmt2 = s => s ? `${s.n}  ${s.a.toFixed(2)}–${s.b.toFixed(2)}  ${s.txt}` : '';
+  // 입 번호 줄: 프레임마다 입 그림 한 글자(. 쉼, m 다문 입, t 이 다문 입, 1~4 벌림 단계, r·o·R 둥근 입, u 내민 입), 지금 프레임은 [ ]
+  const code = f => CODE[VIS?.frames[f]] ?? ' ';
+  let strip = '';
+  for (let f = k - 30; f <= k + 30; f++) strip += f === k ? `<i>[${code(f)}]</i>` : (f < 0 ? ' ' : code(f));
+  const html = `${cur ? `<b>#${cur.n} ${cur.txt.split('|')[0].trim()}</b>  ${cur.txt.split('|')[1] ?? ''}` : '<b>·</b>'}\n입 그림: ${MOUTH_NAME[tex] ?? tex}  (프레임 ${k})\n${strip}\n${fmt2(cur)}\n다음: ${fmt2(SYL[nx])}`;
+  if (html !== shownSyl) { sylEl.innerHTML = html; shownSyl = html; }
+}
 let shownLyric = '';
 function applyLyric(t) {
   const l = LINES.find(l => t >= l.a && t <= l.b + .3);
@@ -157,18 +185,78 @@ function applyLyric(t) {
 // 프레임마다 목표값을 [¼ ½ ¼]로 부드럽게 하고 프레임 사이는 선형 보간(화면 주사율과 무관하게 같은 움직임).
 // 노래할 때 입이 작다(2026-10-31 사용자) → 턱을 더 내린다. 1을 넘는 값은 모프를 더 늘린 것(1 = 1.6cm, 1.5 = 2.4cm)
 // 이어서 벌린 높이 80%(사용자) → 모두 0.8배
-// 가장 크게 벌린 입(open4·round2)만 10% 더 줄임(같은 날 사용자)
-const JAW_OF = Object.fromEntries(Object.entries({ rest: 0, m: 0, open1: .4, round1: .4, open2: .75, o: 1, open3: 1.1, round2: 1.35 * .9, open4: 1.5 * .9 }).map(([k, v]) => [k, v * .8]));
+// 가장 크게 벌린 입(open4·round2)만 10%씩 두 번 줄임(같은 날 사용자: 과하게 벌린다)
+const JAW_OF = Object.fromEntries(Object.entries({ rest: 0, m: 0, teeth: .05, u: .3, open1: .4, round1: .4, open2: .75, o: 1, open3: 1.1, round2: 1.35 * .81, open4: 1.5 * .81 }).map(([k, v]) => [k, v * .8]));
 const jawIdx = skinned.morphTargetDictionary?.JawOpen;
-const JAW = VIS && jawIdx !== undefined ? VIS.frames.map((_, k, f) => {
+const buildJaw = () => VIS && jawIdx !== undefined ? VIS.frames.map((_, k, f) => {
   const g = i => JAW_OF[f[Math.min(f.length - 1, Math.max(0, i))]] ?? 0;
   return .25 * g(k - 1) + .5 * g(k) + .25 * g(k + 1);
 }) : null;
+let JAW = buildJaw();
 function applyJaw(t) {
   if (!JAW) return;
   const x = Math.max(0, t * VIS.fps), k = Math.min(JAW.length - 2, Math.floor(x)), a = Math.min(1, x - k);
   skinned.morphTargetInfluences[jawIdx] = JAW[k] + (JAW[k + 1] - JAW[k]) * a;
 }
+// ── 음절 고치기(노래만 모드): 지금 음절의 첫소리·모음·받침 입 모양 글자와 시작·끝 시간을 바꿔 저장하면
+// 서버가 data/syllables.srt를 쓰고 scripts/lyrics.py --keep 으로 입 시간표(visemes.json·mouth.srt)를 다시 만든다(2026-10-31 사용자: 쉽게 바꾸고 싶다)
+const SE_OPTS = [['-', '없음'], ['A', 'A 다문 입(ㅁㅂㅍ)'], ['B', 'B 이 다문 입(ㅅㅈㅊ)'], ['c', 'c 중간 입'], ['C', 'C 약간(ㅏㅐㅔㅡㅣ)'], ['D', 'D 크게(ㅑ, 긴 ㅏ)'],
+  ['E', 'E 좁게(ㅓㅕ)'], ['F', 'F 둥근(ㅗㅛ)'], ['G', 'G 내민(ㅜㅠ)'], ['F+C', 'F+C(ㅘ)'], ['G+C', 'G+C(ㅟ)'], ['G+E', 'G+E(ㅝ)'], ['N', 'N 쉼']];
+let selI = -1, seDirty = false, listenUntil = 0;
+const seEl = document.getElementById('sylEdit');
+for (const id of ['seOn', 'seVw', 'seCo']) $(id).innerHTML = SE_OPTS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+const sylParts = s => { const [ch, ms = ''] = s.txt.split('|'); const tk = ms.trim().split(/\s+/); return { ch: ch.trim(), tk: tk.length === 3 ? tk : ['-', tk[0] || 'C', '-'] }; };
+function showEdit() {
+  seEl.hidden = !singBox.checked || selI < 0;
+  const s = SYL[selI]; if (!s) return;
+  const { ch, tk } = sylParts(s);
+  $('seName').textContent = `#${s.n} ${ch}`; [$('seOn').value, $('seVw').value, $('seCo').value] = tk;
+  $('seA').textContent = s.a.toFixed(3); $('seB').textContent = s.b.toFixed(3);
+  $('seSave').classList.toggle('dirty', seDirty);
+}
+function editTok() {
+  const s = SYL[selI]; if (!s) return;
+  s.txt = `${sylParts(s).ch} | ${[$('seOn').value, $('seVw').value, $('seCo').value].join(' ')}`; seDirty = true; showEdit();
+}
+for (const id of ['seOn', 'seVw', 'seCo']) $(id).onchange = editTok;
+for (const b of seEl.querySelectorAll('[data-se]')) b.onclick = () => {
+  const s = SYL[selI]; if (!s) return;
+  const [key, d] = b.dataset.se.split(','); s[key] = Math.round((s[key] + d / 30) * 1000) / 1000;
+  if (key === 'a' && SYL[selI - 1] && SYL[selI - 1].b > s.a) SYL[selI - 1].b = s.a;      // 앞 음절 끝을 따라 줄인다
+  if (key === 'b' && SYL[selI + 1] && SYL[selI + 1].a < s.b) SYL[selI + 1].a = s.b;
+  seDirty = true; showEdit();
+};
+const goSyl = i => { selI = Math.max(0, Math.min(SYL.length - 1, i)); setPlaying(false); audio.currentTime = video.currentTime = SYL[selI].a; showEdit(); };
+$('sePrev').onclick = () => goSyl(selI - 1);
+$('seGo').onkeydown = e => { if (e.key === 'Enter' && +e.target.value) goSyl(SYL.findIndex(s => s.n === +e.target.value)); };   // 음절 번호로 이동
+$('seNext').onclick = () => goSyl(selI + 1);
+// 늘여 부르기 연음 나누기(2026-10-31 사용자: '당신'을 '다앙신'으로 부른다): 멈춘 위치(음절 밖이면 가운데)에서
+// 앞 = 첫소리+모음(받침 뺌, 입: 첫소리·모음), 뒤 = ㅇ+같은 모음+받침(입: 모음·받침)으로 나눈다
+$('seSplit').onclick = () => {
+  const s = SYL[selI]; if (!s) return;
+  const { ch, tk } = sylParts(s), c = ch.charCodeAt(0) - 0xAC00;
+  if (c < 0 || c >= 11172) { $('seMsg').textContent = '한글 음절만 나눌 수 있음'; return; }
+  const cho = Math.floor(c / 588), jung = Math.floor(c % 588 / 28), jong = c % 28;
+  const t = audio.currentTime > s.a + .05 && audio.currentTime < s.b - .05 ? audio.currentTime : (s.a + s.b) / 2;
+  const first = String.fromCharCode(0xAC00 + (cho * 21 + jung) * 28), second = String.fromCharCode(0xAC00 + (11 * 21 + jung) * 28 + jong);
+  const vw = tk[1].split('+').pop();
+  const b = { n: s.n + 1, a: Math.round(t * 1000) / 1000, b: s.b, txt: `${second} | - ${vw} ${tk[2]}` };
+  s.b = b.a; s.txt = `${first} | ${tk[0]} ${tk[1]} -`;
+  SYL.splice(selI + 1, 0, b); SYL.forEach((x, i) => x.n = i + 1);
+  seDirty = true; showEdit(); $('seMsg').textContent = `${ch} → ${first} + ${second} (저장하면 적용)`;
+};
+$('seListen').onclick = () => { const s = SYL[selI]; if (!s) return; audio.currentTime = video.currentTime = Math.max(0, s.a - .3); listenUntil = s.b + .3; setPlaying(true); };
+$('seSave').onclick = async () => {
+  const ts = t => { const ms = Math.round(t * 1000), h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms % 1000).padStart(3, '0')}`; };
+  const srt = SYL.map((s, i) => `${i + 1}\n${ts(s.a)} --> ${ts(s.b)}\n${s.txt}\n`).join('\n');
+  $('seMsg').textContent = '다시 계산 중…';
+  const r = await fetch('api/syllables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ srt }) }).catch(() => null);
+  if (!r || !r.ok) { $('seMsg').textContent = '저장 실패(로컬 서버에서만 됨)'; return; }
+  Object.assign(VIS, await fetch('data/visemes.json', { cache: 'no-store' }).then(x => x.json()));
+  JAW = buildJaw(); SYL = parseSyl(await fetch('data/syllables.srt', { cache: 'no-store' }).then(x => x.text()));
+  shownMouth = null; shownSyl = ''; seDirty = false; $('seMsg').textContent = '적용됨'; showEdit();
+};
 function applyMouth(t) {
   applyJaw(t);
   if (!VIS || !MOUTHS.rest) return;
@@ -336,6 +424,13 @@ function bendAt(t) { const [i, a] = frameAt(t); return [bendDeg[i] + (bendDeg[i 
 function pose(t) {
   for (const [n, b] of Object.entries(bone)) { b.quaternion.copy(rest[n].q); b.position.copy(rest[n].p); }
   model.updateMatrixWorld(true);
+  if (singBox.checked) {                             // 노래만: 차렷 자세로 입만 움직인다
+    bone.Head.scale.setScalar(HEAD_SCALE); model.updateMatrixWorld(true);
+    applyMouth(t); applyLyric(t); applySyl(t);
+    model.updateMatrixWorld(true);
+    return;
+  }
+  applySyl(t);
   const p = P3(t), L = MP.Left, R = MP.Right;
   const hipM = mid(p[L.hip], p[R.hip]), shM = mid(p[L.sh], p[R.sh]);
   const [bend, bw] = bendAt(t);
@@ -442,6 +537,13 @@ const CAMS = { front: [0, .12, R0], three4: [.65, .2, R0], side: [Math.PI / 2, .
 const cam = { az: 0, el: .12, r: R0 };
 let follow = 0;
 function placeCamera() {
+  if (singBox.checked) {                             // 노래만: 얼굴 가까이(끌기·휠로 돌리고 당길 수 있다)
+    const h = wpos(bone.Head), r = Math.min(cam.r, 4.1) * .36;
+    const ty = h.y + .03;                            // 입이 위 정보 칸과 아래 편집 칸 사이 가운데에 오게
+    camera.position.set(h.x + r * Math.sin(cam.az) * Math.cos(cam.el), ty + r * Math.sin(cam.el), h.z + r * Math.cos(cam.az) * Math.cos(cam.el));
+    camera.lookAt(h.x, ty, h.z);
+    return;
+  }
   const tx = follow, ty = MODEL_KEY === 'dance2' || MODEL_KEY === 'remake' ? .92 : .78;   // 다리 늘린 몸은 키가 1.84m
   camera.position.set(tx + cam.r * Math.sin(cam.az) * Math.cos(cam.el), ty + cam.r * Math.sin(cam.el), cam.r * Math.cos(cam.az) * Math.cos(cam.el));
   camera.lookAt(tx, ty, 0);
@@ -470,7 +572,11 @@ function setPlaying(on) {
 $('play').onclick = () => setPlaying(audio.paused);
 audio.onended = () => setPlaying(false);
 $('seek').oninput = e => { audio.currentTime = +e.target.value; video.currentTime = +e.target.value; };
-$('speed').onchange = e => { audio.playbackRate = video.playbackRate = +e.target.value; };
+$('speed').onchange = e => { audio.playbackRate = video.playbackRate = +e.target.value; $('half').setAttribute('aria-pressed', +e.target.value === .5); };
+// 발음 교정용 ½ 속도(사용자 요청): 누르면 0.5×, 다시 누르면 1×. ?speed=.5 로 시작할 수도 있다
+const setSpeed = v => { $('speed').value = String(v); $('speed').onchange({ target: $('speed') }); };
+$('half').onclick = () => setSpeed(audio.playbackRate === .5 ? 1 : .5);
+if (new URLSearchParams(location.search).get('speed')) setSpeed(+new URLSearchParams(location.search).get('speed'));
 $('showBones').onchange = e => { helper.visible = e.target.checked; };
 addEventListener('keydown', e => { if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); setPlaying(audio.paused); } });
 // 손 모양 표: 지금 박의 왼손·오른손을 고르면 그 박에 저장(서버 data/hands-beats.json)
@@ -508,6 +614,7 @@ addEventListener('resize', resize); resize();
 
 function frame() {
   const t = Math.min(audio.currentTime, DUR - 1e-3);
+  if (listenUntil && t >= listenUntil) { listenUntil = 0; setPlaying(false); audio.currentTime = video.currentTime = SYL[selI]?.a ?? t; }
   if (!audio.paused && !$('audio') && audio.currentTime >= DUR - 1e-3) setPlaying(false);
   if (!audio.paused && Math.abs(video.currentTime - t) > .12) video.currentTime = t;
   if (audio.paused && Math.abs(video.currentTime - t) > .02) video.currentTime = t;

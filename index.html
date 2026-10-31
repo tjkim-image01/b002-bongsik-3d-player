@@ -31,6 +31,15 @@
     <div class="stage" id="threeStage"><canvas id="three"></canvas>
       <div id="loading">3D 봉식이 불러오는 중…</div>
       <div id="lyric"></div>
+      <div id="syl" hidden></div>
+      <div id="sylEdit" hidden>
+        <div class="row"><button id="sePrev">◀ 이전</button> <b id="seName">·</b> <button id="seNext">다음 ▶</button>
+          번호로 가기 <input id="seGo" type="number" min="1" style="width:56px" placeholder="번호"></div>
+        <div class="row">첫소리 <select id="seOn"></select> 모음 <select id="seVw"></select> 받침 <select id="seCo"></select></div>
+        <div class="row">시작 <button data-se="a,-1">−</button><span id="seA"></span><button data-se="a,1">+</button>
+          끝 <button data-se="b,-1">−</button><span id="seB"></span><button data-se="b,1">+</button> <small>(1칸 = 1/30초)</small></div>
+        <div class="row"><button id="seListen">▶ 이 음절 듣기</button> <button id="seSplit" title="멈춘 위치에서 늘여 부르기로 나눔: 당 → 다 + 앙">✂ 여기서 나누기</button> <button id="seSave">저장·적용</button> <span id="seMsg"></span></div>
+      </div>
     </div>
   </section>
 </main>
@@ -39,6 +48,8 @@
   <span id="clock">0:00.0 / 1:00.0</span>
   <input id="seek" type="range" min="0" max="60" step="0.01" value="0" aria-label="재생 위치">
   <label>속도 <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select></label>
+  <label><input type="checkbox" id="singOnly"> 노래만(입 교정)</label>
+  <button id="half" aria-pressed="false">½ 속도</button>
   <label><input type="checkbox" id="showOverlay" checked> 원작 위 졸라맨</label>
   <label><input type="checkbox" id="showBones"> 3D 뼈대</label>
   <span class="cams">
